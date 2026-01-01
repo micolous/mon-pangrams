@@ -19,7 +19,8 @@ Then run with:
 ./target/release/mon-pangrams pokemon-phonetic-pangrams/pokemon_gen_1_ipa_pronunciations.csv
 ```
 
-> [!NOTE] Running with data from _all_ Pokémon generations is really slow.
+> [!NOTE]
+> Running with data from _all_ Pokémon generations is really slow.
 
 ## Changes from the upstream TypeScript version
 
