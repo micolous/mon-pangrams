@@ -174,13 +174,22 @@ fn main() {
         initial_solution.mons.push(mon);
     }
 
+    // We have some initial solution
+    if initial_solution.coverage != 0 {
+        assert!(!initial_solution.mons.is_empty());
+        // Remove entries that are represented by our unique phone Pokemon.
+        mons_by_phone.retain(|&k, _| (1 << k) & initial_solution.coverage == 0);
+
+        // Fix up the initial cache key
+        let mut cache_key: Vec<char> = initial_solution.cache_key.chars().collect();
+        cache_key.sort();
+        initial_solution.cache_key = String::from_iter(cache_key);
+    } else {
+        assert!(initial_solution.mons.is_empty());
+    }
+
     // Prevent further mutation
     let mons_by_phone = mons_by_phone;
-
-    // Fix up the initial cache key
-    let mut cache_key: Vec<char> = initial_solution.cache_key.chars().collect();
-    cache_key.sort();
-    initial_solution.cache_key = String::from_iter(cache_key);
 
     // Start finding solutions
     let mut queue: VecDeque<Solution<'_>> = VecDeque::from([initial_solution]);
@@ -228,7 +237,9 @@ fn main() {
                         print!("{}", mon.name);
                     }
                     println!();
-                    continue;
+
+                    // Don't consider more solutions at this length (issue with gen3)
+                    break;
                 }
 
                 if solution.mons.len() <= best_length {
