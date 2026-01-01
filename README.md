@@ -24,7 +24,8 @@ Then run with:
 
 ## Changes from the upstream TypeScript version
 
-- Syllabic `h` (`\u{329}h`) is replaced with `ḥ`, which fixes an issue with Hydreigon.
+- Syllabic `̩h` (`\u{329}h`) is replaced with `ḥ` to make it a single codepoint, which fixes an issue
+  with Hydreigon.
 
 - This program uses a `u64` bitmask to indicate which phones were represented, rather than a `Set`
   of one-codepoint strings.

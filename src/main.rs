@@ -212,17 +212,4 @@ fn main() {
 
     println!();
     println!("Done, tried {solution_count} solutions");
-
-    // approximate_coverage(&frequency, &phone_usage, max_coverage, Vec::new());
-
-    // // Find all the phonemes represented in the file
-    // let mut seen_phones: BTreeSet<char> = BTreeSet::new();
-    // for mon in &mons {
-    //     for phone in mon.ipa.chars() {
-    //         seen_phones.insert(phone);
-    //     }
-    // }
-
-    // println!("Saw {} phones in {} Pokémon", seen_phones.len(), mons.len());
-    // println!("{:?}", seen_phones);
 }
