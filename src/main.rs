@@ -79,7 +79,7 @@ fn main() {
 
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
-    mons.sort_by_key(|e| e.phones_mask | ((e.phones_mask.count_ones() as u64) << 41));
+    mons.sort_by_key(|e| e.phones_mask | ((e.phones_mask.count_ones() as u64) << MON_PHONES.len()));
     mons.reverse();
 
     // Working from the end of the list (= less bits), remove entries that are subsets of an earlier

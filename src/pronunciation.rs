@@ -1,21 +1,28 @@
 //! Load in pronunciation data
 
+/// All the phones that can appear in a Pokémon's name.
 pub const MON_PHONES: [char; 40] = [
     'b', 'd', 'f', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'p', 's', 't', 'u', 'v', 'w', 'z', 'Ø', 'ä',
     'æ', 'ï', 'ð', 'õ', 'ö', 'ŋ', 'ɑ', 'ə', 'ɚ', 'ɛ', 'ɡ', 'ɪ', 'ɹ', 'ʃ', 'ʊ', 'ʒ', 'ʔ', 'ʤ', 'ʧ',
     'θ', 'ḥ',
 ];
 
+/// Reader for pronunciation files
 pub struct PronunciationReader<R> {
     f: R,
     next_id: u16,
 }
 
+/// A Pokémon's pronunciation entry
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pokémon {
+    /// The name
     pub name: String,
+    /// Its pronunciation, in IPA
     pub ipa: String,
+    /// The mask of phones that appear in this Pokémon's IPA
     pub phones_mask: u64,
+    /// Actually a line number
     pub id: u16,
 }
 
@@ -23,6 +30,7 @@ impl<R> PronunciationReader<R>
 where
     R: std::io::BufRead,
 {
+    /// Read pronunciation data file
     pub fn new(f: R) -> Self {
         Self { f, next_id: 0 }
     }
