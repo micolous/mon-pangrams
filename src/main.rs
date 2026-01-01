@@ -24,22 +24,25 @@ struct Solution<'a> {
 }
 
 fn solve<'a>(
-    mons_by_phone: &BTreeMap<u8, Vec<&'a Pokémon>>,
+    mons_by_phone: &BTreeMap<u8, &Vec<&'a Pokémon>>,
     existing_solution: &Solution<'a>,
 ) -> Vec<Solution<'a>> {
     let mut min_names = usize::MAX;
 
+    // Find the shortest list(s)
     for mons in mons_by_phone.values() {
         min_names = min_names.min(mons.len());
+        assert!(min_names > 1);
     }
 
     let mut o = Vec::new();
     for mons in mons_by_phone.values() {
         if mons.len() != min_names {
+            // Only consider the shortest lists
             continue;
         }
 
-        for mon in mons {
+        for mon in *mons {
             let coverage = existing_solution.coverage | mon.phones_mask;
             if coverage == existing_solution.coverage {
                 // unchanged coverage, skip it
@@ -126,42 +129,78 @@ fn main() {
     println!();
     println!("{} phones represented:", mons_by_phone.len());
     // frequency -> phone ID
-    // let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONES.len());
+    let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONES.len());
     for (&k, v) in &mons_by_phone {
         let phone = MON_PHONES[k as usize];
         let count = v.len() as u16;
         println!("  {phone}: {count:3} Pokémon");
-        // frequency.push((count, k));
+        frequency.push((count, k));
     }
 
-    // // Sort the frequency table by lowest -> highest frequency
-    // frequency.sort();
+    // Sort the frequency table by lowest -> highest frequency
+    frequency.sort();
     // println!("frequency -> phone_id: {frequency:?}");
 
     println!();
     println!("Finding a solution...");
-    let mut queue: VecDeque<Solution<'_>> = VecDeque::from([Solution {
+
+    // Check if there are any unique phones first, and include them in the initial solution
+    let mut initial_solution = Solution {
         mons: Vec::new(),
         coverage: 0,
         cache_key: String::new(),
-    }]);
+    };
 
+    for (count, phone_id) in frequency {
+        assert!(count > 0);
+        if count > 1 {
+            break;
+        }
+
+        let mut mons = mons_by_phone.remove(&phone_id).unwrap();
+        assert_eq!(mons.len(), 1);
+        let mon = mons.remove(0);
+
+        let coverage = initial_solution.coverage | mon.phones_mask;
+        if coverage == initial_solution.coverage {
+            // We already have something to handle this
+            continue;
+        }
+
+        initial_solution.coverage = coverage;
+        initial_solution
+            .cache_key
+            .push(char::from_u32(mon.id.into()).unwrap());
+        initial_solution.mons.push(mon);
+    }
+
+    // Prevent further mutation
+    let mons_by_phone = mons_by_phone;
+
+    // Fix up the initial cache key
+    let mut cache_key: Vec<char> = initial_solution.cache_key.chars().collect();
+    cache_key.sort();
+    initial_solution.cache_key = String::from_iter(cache_key);
+
+    // Start finding solutions
+    let mut queue: VecDeque<Solution<'_>> = VecDeque::from([initial_solution]);
     let mut cache = BTreeSet::new();
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
     let mut solution_count = 0;
 
-    while !queue.is_empty() {
-        let Some(step) = queue.pop_front() else {
-            break;
-        };
+    while let Some(step) = queue.pop_front() {
+        if step.mons.len() + 1 >= best_length {
+            // There's no way we could beat this solution.
+            continue;
+        }
 
         // Include only the subset of mons_by_phone that we haven't already covered
-        let lookup: BTreeMap<u8, Vec<&Pokémon>> = mons_by_phone
+        let lookup: BTreeMap<u8, &Vec<&Pokémon>> = mons_by_phone
             .iter()
             .filter_map(|(&k, v)| {
                 if step.coverage & (1 << k) == 0 {
-                    Some((k, v.clone()))
+                    Some((k, v))
                 } else {
                     None
                 }
@@ -174,10 +213,6 @@ fn main() {
 
         for solution in list_of_solutions {
             solution_count += 1;
-            if solution.mons.len() >= best_length {
-                // solution is no better
-                continue;
-            }
 
             if cache.insert(solution.cache_key.clone()) {
                 if solution.coverage == max_coverage {

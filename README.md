@@ -20,7 +20,7 @@ Then run with:
 ```
 
 > [!NOTE]
-> Running with data from _all_ Pokémon generations is really slow.
+> Running with data from _all_ Pokémon generations is slow.
 
 ## Changes from the upstream TypeScript version
 
