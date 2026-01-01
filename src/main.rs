@@ -26,6 +26,7 @@ struct Solution<'a> {
 fn solve<'a>(
     mons_by_phone: &BTreeMap<u8, &Vec<&'a Pokémon>>,
     existing_solution: &Solution<'a>,
+    max_coverage: u64,
 ) -> Vec<Solution<'a>> {
     let mut min_names = usize::MAX;
 
@@ -59,11 +60,19 @@ fn solve<'a>(
             cache_key.sort();
             let cache_key = String::from_iter(cache_key);
 
-            o.push(Solution {
+            let solution = Solution {
                 mons,
                 coverage,
                 cache_key,
-            });
+            };
+
+            if coverage == max_coverage {
+                // We have a solution, return this and nothing more
+                return vec![solution];
+            }
+
+            // More work to do.
+            o.push(solution);
         }
     }
 
@@ -216,7 +225,7 @@ fn main() {
             })
             .collect();
 
-        let mut list_of_solutions = solve(&lookup, &step);
+        let mut list_of_solutions = solve(&lookup, &step, max_coverage);
         // println!("solver gave {} solutions", list_of_solutions.len());
         list_of_solutions.sort_by_key(|s| u32::MAX - s.coverage.count_ones());
 
