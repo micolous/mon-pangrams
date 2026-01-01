@@ -1,0 +1,3 @@
+[submodule "pokemon-phonetic-pangrams"]
+	path = pokemon-phonetic-pangrams
+	url = https://codeberg.org/anvilfood/pokemon-phonetic-pangrams.git/
