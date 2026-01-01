@@ -6,6 +6,7 @@ edition = "2021"
 repository = "https://github.com/micolous/mon-pangrams"
 license = "MIT OR Apache-2.0"
 rust-version = "1.88"
+publish = false
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
