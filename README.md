@@ -1,6 +1,6 @@
 # mon-pangrams
 
-My lazy Rust port of [`pokemon-phonetic-pangrams`][0].
+My lazy Rust port of [`pokemon-phonetic-pangrams`][0], based on [this blog post][0].
 
 ## Building / running
 
@@ -215,11 +215,11 @@ Done, tried 348730 solutions
 - Syllabic `̩h` (`\u{329}h`) is replaced with `ḥ` to make it a single codepoint, which fixes an issue
   with Hydreigon.
 
-- This program uses a `u64` bitmask to indicate which phones were represented, rather than a `Set`
+- This program uses a `u64` bitmask to indicate which phonemes were represented, rather than a `Set`
   of one-codepoint strings.
 
-- This program considers phones used by exactly 1 Pokémon as part of the initial solution, rather
-  than going into a solve loop for each of them individually.
+- This program considers all phonemes used by exactly 1 Pokémon as part of the initial solution,
+  rather than going into a solve loop for each of them individually.
   
   eg: In the set of all Pokémon, `ḥ` and `ð` are each in one Pokémon. This program's initial
   solution includes both Hydregion and Slither Wing, rather than trying an empty initial solution
