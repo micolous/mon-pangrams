@@ -3,12 +3,13 @@ use crate::memory::get_memory_stats;
 use crate::pronunciation::{phoneme_index, Pokémon, PronunciationReader, MON_PHONEMES};
 use crate::set::BitSet;
 use clap::Parser;
-use eyre::Result;
+use eyre::{OptionExt, Result};
 use itertools::Itertools;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BTreeMap, BinaryHeap, HashSet};
 use std::fs::File;
 use std::io::BufReader;
+use std::ops::BitOr;
 use std::path::PathBuf;
 
 #[cfg(feature = "memory-stats")]
@@ -115,35 +116,44 @@ fn main() -> Result<()> {
     let opts = Opts::parse();
 
     let f = BufReader::new(File::open(opts.input)?);
-    let mut mons = PronunciationReader::new(f).collect::<Result<Vec<_>>>()?;
-    println!("Read {count} Pokémon", count = mons.len());
-
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
-    mons.sort_by_key(|e| Reverse((e.phonemes_mask.len(), e.phonemes_mask)));
+    let original_mons: Vec<Pokémon> = PronunciationReader::new(f)
+        .sorted_by_key(|e| {
+            let mask = e.as_ref().ok()?.phonemes_mask;
+            Some(Reverse((mask.len(), mask)))
+        })
+        .collect::<Result<_>>()?;
+    println!("Read {count} Pokémon", count = original_mons.len());
 
-    // Working from the end of the list (= less bits), remove entries that are subsets of an earlier
-    // entry.
-    let mut max_coverage = BitSet::default();
-    let mut i = mons.len() - 1;
-    while i > 0 {
-        let mask = mons[i].phonemes_mask;
-        for o in &mons[..i] {
-            if o.phonemes_mask | mask == o.phonemes_mask {
-                // This mon is a subset of another mon
-                mons.remove(i);
-                break;
+    // max_coverage is the set of every covered phoneme
+    let max_coverage = original_mons
+        .iter()
+        .map(|mon| mon.phonemes_mask)
+        .reduce(BitOr::bitor)
+        .ok_or_eyre("no pokemon loaded")?;
+
+    let non_redundant_mons: Vec<Pokémon> = original_mons
+        .iter()
+        .enumerate()
+        .filter_map(|(i, mon)| {
+            let preceding_mons = &original_mons[..i];
+            if preceding_mons
+                .iter()
+                .any(|preceding_mon| mon.phonemes_mask.is_subset_of(preceding_mon.phonemes_mask))
+            {
+                None // exclude all pokemon that are covered by another's pronunciation
+            } else {
+                Some(mon.clone())
             }
-        }
-        i -= 1;
-        max_coverage |= mask;
-    }
+        })
+        .collect();
 
     println!(
         "There are {count} Pokémon that do not use a subset of another's phonemes:",
-        count = mons.len()
+        count = non_redundant_mons.len()
     );
-    for (i, mon) in mons.iter().enumerate() {
+    for (i, mon) in non_redundant_mons.iter().enumerate() {
         println!(
             "  [{i:03}] = {name:20} phonemes: {phonemes}",
             name = mon.name,
@@ -155,13 +165,14 @@ fn main() -> Result<()> {
         );
     }
 
-    // phone bit -> Vec<&Pokemon> that has it
+    // phone -> Vec<&Pokemon> that has it
     let mut mons_by_phone: BTreeMap<char, Vec<&Pokémon>> = MON_PHONEMES
         .iter()
         .map(|&phoneme| {
             (
                 phoneme,
-                mons.iter()
+                non_redundant_mons
+                    .iter()
                     .filter(|mon| mon.ipa.contains(phoneme))
                     .collect(),
             )
@@ -177,7 +188,7 @@ fn main() -> Result<()> {
         .iter()
         .map(|(&phone, mons)| {
             if !opts.summary {
-                println!("  {phone}: {count:3} Pokémon");
+                println!("  {phone}: {count:3} Pokémon", count = mons.len());
             }
             (mons.len(), phone)
         })
@@ -300,7 +311,13 @@ fn main() -> Result<()> {
     );
 
     if opts.summary {
-        println!("| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | **{best_length} Pokémon**: {best_solution} |");
+        println!(
+            "| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | \
+            **{best_length} Pokémon**: {best_solution} |",
+            pokemon_count = original_mons.len(),
+            distinct_pokemon_count = non_redundant_mons.len(),
+            phoneme_count = mons_by_phone.len(),
+        );
     }
 
     #[cfg(feature = "memory-stats")]
