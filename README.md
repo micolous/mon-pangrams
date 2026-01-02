@@ -251,7 +251,7 @@ There are 136 Pokémon that do not use a subset of another's phonemes:
   ʧ:  11 Pokémon
   θ:   5 Pokémon
 
-Memory usage before running solver: 23650 now, 23498 peak
+Memory usage before running solver: 23498 now, 23370 peak
 
 Finding a solution...
  Solution #41 (11 Pokémon): Persian, Vulpix, Blastoise, Drowzee, Venomoth, Sandshrew, Ninetales, Exeggutor, Hitmonchan, Jynx, Wigglytuff
@@ -259,7 +259,7 @@ Finding a solution...
 
 Done, tried 10965 candidates, 39 peak queue length, 18 peak solver length, 10966 cache entries
 Memory usage after running solver: 195290 now, 197218 peak
-./target/release/mon-pangrams   0.01s user 0.00s system 94% cpu 0.015 total
+./target/release/mon-pangrams   0.01s user 0.00s system 89% cpu 0.016 total
 ```
 
 </details>
@@ -1062,14 +1062,14 @@ There are 749 Pokémon that do not use a subset of another's phonemes:
   ʧ:  51 Pokémon
   θ:  23 Pokémon
 
-Memory usage before running solver: 142362 now, 142210 peak
+Memory usage before running solver: 142210 now, 141698 peak
 
 Finding a solution...
  Solution #51 (9 Pokémon): Slither Wing, Typhlosion, Spoink, Granbull, Venomoth, Houndoom, Exeggutor, Shaymin, Jirachi
 
 Done, tried 468910 candidates, 63 peak queue length, 26 peak solver length, 468911 cache entries
 Memory usage after running solver: 7471298 now, 7472922 peak
-./target/release/mon-pangrams   0.73s user 0.01s system 99% cpu 0.736 total
+./target/release/mon-pangrams   0.72s user 0.01s system 99% cpu 0.730 total
 ```
 
 </details>

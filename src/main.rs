@@ -8,7 +8,7 @@ use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
 use clap::Parser;
 use std::{
     cmp::Reverse,
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     fs::File,
     io::BufReader,
     path::PathBuf,
@@ -159,18 +159,19 @@ fn main() {
         println!("{phoneme_count} phonemes represented:");
     }
     // frequency -> phone ID
-    let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONEMES.len());
-    for (&k, v) in &mons_by_phone {
-        let phone = MON_PHONEMES[k as usize];
-        let count = v.len() as u16;
-        if !opts.summary {
+    // let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONEMES.len());
+    if !opts.summary {
+        for (&k, v) in &mons_by_phone {
+            let phone = MON_PHONEMES[k as usize];
+            let count = v.len() as u16;
             println!("  {phone}: {count:3} Pokémon");
+
+            // frequency.push((count, k));
         }
-        frequency.push((count, k));
     }
 
     // Sort the frequency table by lowest -> highest frequency
-    frequency.sort();
+    // frequency.sort();
     // println!("frequency -> phone_id: {frequency:?}");
 
     #[cfg(feature = "memory-stats")]
@@ -191,25 +192,25 @@ fn main() {
         coverage: 0,
     };
 
-    for (count, phone_id) in frequency {
-        assert!(count > 0);
-        if count > 1 {
-            break;
+    mons_by_phone.retain(|_phoneme_id, mons| {
+        assert!(!mons.is_empty());
+        if mons.len() != 1 {
+            return true;
         }
 
-        let mut mons = mons_by_phone.remove(&phone_id).unwrap();
-        assert_eq!(mons.len(), 1);
         let mon = mons.remove(0);
 
         let coverage = initial_solution.coverage | mon.phonemes_mask;
         if coverage == initial_solution.coverage {
-            // We already have something to handle this
-            continue;
+            // We already have a mon that handles this, so we can just drop this.
+            return false;
         }
 
         initial_solution.coverage = coverage;
         initial_solution.mons.push(mon);
-    }
+
+        false
+    });
 
     // We have some initial solution
     if initial_solution.coverage != 0 {
@@ -224,7 +225,7 @@ fn main() {
     let mons_by_phone = mons_by_phone;
 
     // Start finding solutions
-    let mut queue: VecDeque<Solution<'_>> = VecDeque::from([initial_solution]);
+    let mut queue: Vec<Solution<'_>> = vec![initial_solution];
     let mut cache = BTreeSet::new();
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
@@ -233,7 +234,7 @@ fn main() {
     let mut peak_candidate_len = 0;
     let mut best_solution = String::new();
 
-    while let Some(step) = queue.pop_front() {
+    while let Some(step) = queue.pop() {
         if step.mons.len() + 1 >= best_length {
             // There's no way we could beat this solution.
             continue;
@@ -280,7 +281,7 @@ fn main() {
 
             if solution.mons.len() <= best_length {
                 let idx = queue
-                    .partition_point(|s| s.coverage.count_ones() > solution.coverage.count_ones());
+                    .partition_point(|s| s.coverage.count_ones() <= solution.coverage.count_ones());
                 // println!("potential solution: [{idx}] {solution:?}");
                 // best_bits = best_bits.max(solution.coverage.count_ones());
                 queue.insert(idx, solution);
