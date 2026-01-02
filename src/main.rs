@@ -5,7 +5,8 @@ mod pronunciation;
 #[cfg(feature = "memory-stats")]
 use crate::memory::get_memory_stats;
 use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+use rand::seq::SliceRandom;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
@@ -23,6 +24,46 @@ struct Opts {
     /// Emit less debugging output, and a solution summary for the README
     #[clap(long)]
     summary: bool,
+
+    /// How to preference Pokémon to satisfy a desired phoeneme
+    #[clap(short, long, default_value = "most-unique")]
+    prefer: SelectionPreference,
+
+    /// Don't prune Pokémon that contain a subset of another's phonemes, increasing memory usage and
+    /// reducing speed
+    #[clap(long)]
+    no_prune: bool,
+}
+
+#[derive(Default, Clone, ValueEnum)]
+enum SelectionPreference {
+    /// Most unique phonemes (default, greedy selection that quickly finds an optimal solution, but may be a tongue twister)
+    #[default]
+    MostUnique,
+
+    /// Least unique phonemes (procrastinates finding an optimal solution, but prefers simpler names)
+    LeastUnique,
+
+    /// Most phonemes (whichever takes the longest to say, even if it contains repeated phonemes)
+    MostPhonemes,
+
+    /// Least phonemes (also procrastinates, but prefers shorter names)
+    LeastPhonemes,
+
+    /// Longest name
+    LongestName,
+
+    /// Shortest name
+    ShortestName,
+
+    /// Names in alphabetical order
+    Alphabetical,
+
+    /// Names in reverse alphabetical order
+    ReverseAlphabetical,
+
+    /// Random shuffle (diverse results, but generally procrastinates)
+    Random,
 }
 
 #[derive(Debug)]
@@ -96,6 +137,7 @@ fn solve<'a>(
 
 fn main() {
     let opts = Opts::parse();
+    let mut rng = rand::rng();
 
     let f = BufReader::new(File::open(opts.input).unwrap());
     let reader = PronunciationReader::new(f);
@@ -103,32 +145,71 @@ fn main() {
     let pokemon_count = mons.len();
     println!("Read {pokemon_count} Pokémon");
 
-    // Sort by number of one-bits in the mask then the mask itself, so that higher-coverage entries
-    // appear earlier in the list (and we get a stable sort).
-    mons.sort_by_key(|e| {
-        Reverse(e.phonemes_mask | ((e.phonemes_mask.count_ones() as u64) << MON_PHONEMES.len()))
-    });
-
-    // Working from the end of the list (= less bits), remove entries that are subsets of an earlier
-    // entry.
     let mut max_coverage = 0;
-    let mut i = mons.len() - 1;
-    while i > 0 {
-        let mask = mons[i].phonemes_mask;
-        for o in &mons[..i] {
-            if o.phonemes_mask | mask == o.phonemes_mask {
-                // This mon is a subset of another mon
-                mons.remove(i);
-                break;
+
+    if opts.no_prune {
+        max_coverage = mons.iter().fold(0, |acc, e| acc | e.phonemes_mask);
+    } else {
+        // Sort by number of one-bits in the mask then the mask itself, so that higher-coverage entries
+        // appear earlier in the list (and we get a stable sort).
+        mons.sort_by_key(|e| Reverse((e.phonemes_mask.count_ones(), e.phonemes_mask)));
+
+        // Working from the end of the list (= less bits), remove entries that are subsets of an earlier
+        // entry.
+        let mut i = mons.len() - 1;
+        while i > 0 {
+            let mask = mons[i].phonemes_mask;
+            for o in &mons[..i] {
+                if o.phonemes_mask | mask == o.phonemes_mask {
+                    // This mon is a subset of another mon
+                    mons.remove(i);
+                    break;
+                }
+            }
+            i -= 1;
+            max_coverage |= mask;
+        }
+    }
+
+    // Re-sort the list of Pokémon to apply the selection preference
+    match opts.prefer {
+        SelectionPreference::MostUnique => {
+            if opts.no_prune {
+                // We have to sort it here
+                mons.sort_by_key(|e| Reverse(e.phonemes_mask.count_ones()));
             }
         }
-        i -= 1;
-        max_coverage |= mask;
+        SelectionPreference::LeastUnique => {
+            mons.sort_by_key(|e| e.phonemes_mask.count_ones());
+        }
+        SelectionPreference::MostPhonemes => {
+            mons.sort_by_key(|e| Reverse(e.ipa.len()));
+        }
+        SelectionPreference::LeastPhonemes => {
+            mons.sort_by_key(|e| e.ipa.len());
+        }
+        SelectionPreference::LongestName => {
+            mons.sort_by_key(|e| Reverse(e.name.len()));
+        }
+        SelectionPreference::ShortestName => {
+            mons.sort_by_key(|e| e.name.len());
+        }
+        SelectionPreference::Alphabetical => {
+            mons.sort_by_key(|e| e.name.clone());
+        }
+        SelectionPreference::ReverseAlphabetical => {
+            mons.sort_by_key(|e| Reverse(e.name.clone()));
+        }
+        SelectionPreference::Random => {
+            mons.shuffle(&mut rng);
+        }
     }
 
     let distinct_pokemon_count = mons.len();
     if !opts.summary {
-        println!("There are {distinct_pokemon_count} Pokémon that do not use a subset of another's phonemes:");
+        if opts.no_prune {
+            println!("There are {distinct_pokemon_count} Pokémon that do not use a subset of another's phonemes:");
+        }
         for (i, mon) in mons.iter().enumerate() {
             println!(
                 "  [{i:03}] = {:20} mask: {:#12x}, bits: {:2}",
