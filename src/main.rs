@@ -109,12 +109,12 @@ fn main() {
     }
 
     println!(
-        "There are {} Pokémon that are not a subset of another's pronunciation:",
+        "There are {} Pokémon that do not use a subset of another's phonemes:",
         mons.len()
     );
     for (i, mon) in mons.iter().enumerate() {
         println!(
-            "  [{i:03}] = {:20}, mask: {:#12x}, bits: {:2}",
+            "  [{i:03}] = {:20} mask: {:#12x}, bits: {:2}",
             mon.name,
             mon.phonemes_mask,
             mon.phonemes_mask.count_ones(),
