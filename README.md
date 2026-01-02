@@ -6,7 +6,7 @@ less memory.
 
 ## Solutions
 
-If you don't want to run this yourself, here are the solutions that my program comes up with:
+Here are the solutions that this program comes up with:
 
 | Generation  | Pokémon | Non-subset Pokémon | Unique phonemes | Best solution                                                                                                                                         |
 | :---------: | ------: | -----------------: | --------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -21,8 +21,18 @@ If you don't want to run this yourself, here are the solutions that my program c
 |   **9th**   |     120 |                111 |          **38** | **11 Pokémon**: Slither Wing, Oinkologne, Tadbulb, Armarouge, Sandy Shocks, Iron Jugulis, Espathra, Maushold, Flutter Mane, Iron Leaves, Poltchageist |
 | **1st-9th** |     937 |                749 |          **38** | **9 Pokémon**: Slither Wing, Typhlosion, Spoink, Granbull, Venomoth, Houndoom, Exeggutor, Shaymin, Jirachi                                            |
 
-> [!NOTE]
-> These aren't the _only_ solutions, [there will be others](#changes-from-the-original-typescript-program).
+- **Pokémon**: number of Pokémon in that dataset.
+
+- **Non-subset Pokémon**: number of Pokémon which contain a set of phonemes that is _not_ a subset
+  of another Pokémon's phonemes.
+
+  eg: Mew /ˈmjuː/ is a subset of Mewtwo /ˈmjuːtuː/, Pidgey /ˈpɪdʒiː/ is a subset of Jigglypuff
+  /ˈdʒɪɡliːpʌf/.
+
+- **Unique phonemes**: number of unique phonemes represented in the dataset.
+
+- **Best solution**: the shortest-length solution that this program came up with. This isn't the
+  _only_ solution, [there will be others](#changes-from-the-original-typescript-program).
 
 ## Building / running
 
@@ -1080,14 +1090,19 @@ Memory usage after running solver: 7471300 now, 7472924 peak
 
   This makes things faster, and use less memory.
 
-- This program uses `u64` cache key of `bitmask | (path.len() << 38)`, rather than a `String` of
-  UTF-16 codepoints for each Pokémon ID visited.
+- This program uses `u64` path cache key of `bitmask | (path.len() << 38)`, rather than a sorted
+  `String` of UTF-16 codepoints for each Pokémon ID visited.
 
   This introduces a bunch of collisions to exclude equivalent paths: if we have a set of phoenemes
   represented (which we already track as a `u64`) for a given path length, then another set of
   Pokémon of the same length that achieves the same coverage is equivalent and not worth exploring.
 
-  This makes things **much** faster, and use **a lot** less memory.
+  eg: In the set of all Pokémon, given a starting path of `(Slither Wing, Typhlosion)` (15
+  phoenemes, bitmask `0x44db09a94`), the solver will consider Oinkologne (7 phonemes, bitmask
+  `0x5c002c0`) as a potential next step, but then skip Cloyster (6 phonemes, bitmask `0x84018c0`)
+  because it would would provide the same phoneme coverage (bitmask `0x44df09ad4`) with 3 Pokémon.
+
+  This makes things **much** faster, and the path cache uses **a lot** less memory.
 
 - This program considers all phonemes used by exactly 1 Pokémon as part of the initial solution,
   rather than going into a solve loop for each of them individually.
