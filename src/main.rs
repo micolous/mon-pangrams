@@ -5,8 +5,8 @@ use crate::set::BitSet;
 use clap::Parser;
 use eyre::Result;
 use itertools::Itertools;
-use std::cmp::Reverse;
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BTreeMap, BinaryHeap, HashSet};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -26,10 +26,22 @@ struct Opts {
     summary: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 struct Solution<'a> {
     mons: Vec<&'a Pokémon>,
     coverage: BitSet,
+}
+
+impl<'a> PartialOrd for Solution<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> Ord for Solution<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ordering_key().cmp(&other.ordering_key())
+    }
 }
 
 impl Solution<'_> {
@@ -42,6 +54,10 @@ impl Solution<'_> {
     /// acquired for the number of Pokémon in the list.
     pub fn cache_key(&self) -> u64 {
         self.coverage.into_inner() | ((self.mons.len() as u64) << MON_PHONEMES.len())
+    }
+
+    pub fn ordering_key(&self) -> impl Ord + use<'_> {
+        (self.coverage.len(), self.coverage, &self.mons)
     }
 }
 
@@ -213,7 +229,7 @@ fn main() -> Result<()> {
     let mons_by_phone = mons_by_phone;
 
     // Start finding solutions
-    let mut queue: VecDeque<Solution<'_>> = VecDeque::from([initial_solution]);
+    let mut queue: BinaryHeap<Solution> = BinaryHeap::from_iter([initial_solution]);
     let mut cache = HashSet::new();
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
@@ -222,7 +238,7 @@ fn main() -> Result<()> {
     let mut peak_candidate_len = 0;
     let mut best_solution = String::new();
 
-    while let Some(step) = queue.pop_front() {
+    while let Some(step) = queue.pop() {
         if step.mons.len() + 1 >= best_length {
             // There's no way we could beat this solution.
             continue;
@@ -268,8 +284,7 @@ fn main() -> Result<()> {
             }
 
             if solution.mons.len() <= best_length {
-                let idx = queue.partition_point(|s| s.coverage.len() > solution.coverage.len());
-                queue.insert(idx, solution);
+                queue.push(solution);
             }
         }
 

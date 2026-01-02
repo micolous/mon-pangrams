@@ -21,7 +21,7 @@ pub struct PronunciationReader<R> {
 }
 
 /// A Pokémon's pronunciation entry
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Pokémon {
     /// The name
     pub name: String,
