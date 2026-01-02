@@ -47,6 +47,7 @@ fn solve<'a>(
     mons_by_phone: &BTreeMap<u8, &Vec<&'a Pokémon>>,
     existing_solution: &Solution<'a>,
     max_coverage: u64,
+    cache: &mut BTreeSet<u64>,
 ) -> Vec<Solution<'a>> {
     let mut min_names = usize::MAX;
 
@@ -72,8 +73,12 @@ fn solve<'a>(
 
             let mut mons = existing_solution.mons.clone();
             mons.push(mon);
-
             let solution = Solution { mons, coverage };
+
+            if !cache.insert(solution.cache_key()) {
+                // This isn't a new path.
+                continue;
+            }
 
             if coverage == max_coverage {
                 // We have a solution, return this and nothing more
@@ -246,7 +251,7 @@ fn main() {
             })
             .collect();
 
-        let mut list_of_solutions = solve(&lookup, &step, max_coverage);
+        let mut list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
         // println!("solver gave {} solutions", list_of_solutions.len());
         peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
         list_of_solutions.sort_by_key(|s| u32::MAX - s.coverage.count_ones());
@@ -254,36 +259,31 @@ fn main() {
         for solution in list_of_solutions {
             solution_count += 1;
 
-            if cache.insert(solution.cache_key()) {
-                if solution.coverage == max_coverage {
-                    best_length = solution.mons.len();
-                    let mut first = true;
-                    best_solution.clear();
-                    for mon in solution.mons {
-                        if first {
-                            first = false;
-                        } else {
-                            best_solution.push_str(", ");
-                        }
-                        best_solution.push_str(&mon.name);
+            if solution.coverage == max_coverage {
+                best_length = solution.mons.len();
+                let mut first = true;
+                best_solution.clear();
+                for mon in solution.mons {
+                    if first {
+                        first = false;
+                    } else {
+                        best_solution.push_str(", ");
                     }
-
-                    println!(
-                        " Solution #{solution_count} ({best_length} Pokémon): {best_solution}"
-                    );
-
-                    // Don't consider more solutions at this length (issue with gen3)
-                    break;
+                    best_solution.push_str(&mon.name);
                 }
 
-                if solution.mons.len() <= best_length {
-                    let idx = queue.partition_point(|s| {
-                        s.coverage.count_ones() > solution.coverage.count_ones()
-                    });
-                    // println!("potential solution: [{idx}] {solution:?}");
-                    // best_bits = best_bits.max(solution.coverage.count_ones());
-                    queue.insert(idx, solution);
-                }
+                println!(" Solution #{solution_count} ({best_length} Pokémon): {best_solution}");
+
+                // Don't consider more solutions at this length (issue with gen3)
+                break;
+            }
+
+            if solution.mons.len() <= best_length {
+                let idx = queue
+                    .partition_point(|s| s.coverage.count_ones() > solution.coverage.count_ones());
+                // println!("potential solution: [{idx}] {solution:?}");
+                // best_bits = best_bits.max(solution.coverage.count_ones());
+                queue.insert(idx, solution);
             }
         }
 
