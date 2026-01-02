@@ -8,5 +8,8 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.88"
 publish = false
 
+[features]
+memory-stats = []
+
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }

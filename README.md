@@ -11,6 +11,9 @@ You'll need [to install a recent Rust toolchain][2], then run:
 
 ```sh
 cargo build --release
+
+# Or to build with memory stats reporting (which makes it slower):
+cargo build --release --features memory-stats
 ```
 
 Then run with:
@@ -20,8 +23,8 @@ Then run with:
 ```
 
 > [!NOTE]
-> This program does an exhaustive search, so running with data from _all_ Pokémon generations is
-> **slow**.
+> This program does an exhaustive search, so searching _all_ Pokémon generations is **slow** and
+> uses **a lot of RAM** (around 16 GiB).
 
 ## Example output
 
@@ -211,7 +214,23 @@ Finding a solution...
  Solution #69 (11 Pokémon): Persian, Vulpix, Blastoise, Drowzee, Venomoth, Sandshrew, Primeape, Exeggcute, Hitmonchan, Jynx, Wigglytuff
  Solution #104466 (10 Pokémon): Persian, Vulpix, Blastoise, Meowth, Shellder, Primeape, Cubone, Hitmonchan, Jigglypuff, Weezing
 
-Done, tried 348730 solutions
+Done, tried 348730 candidates, 60 peak queue length, 18 peak solver length
+```
+
+Running with all generations finds the first solution quickly, but takes several minutes and 16 GiB
+of RAM to do an exhaustive search for shorter solutions:
+
+```
+$ ./target/release/mon-pangrams pokemon-phonetic-pangrams/pokemon_ipa_pronunciations.csv
+Read 937 Pokémon
+There are 749 Pokémon that do not use a subset of another's phonemes:
+[snip]
+
+Finding a solution...
+ Solution #140 (9 Pokémon): Slither Wing, Typhlosion, Noibat, Dragapult, Venomoth, Houndoom, Exeggcute, Shaymin, Jirachi
+
+Done, tried 312024566 candidates, 206 peak queue length, 102 peak solver length
+Memory usage after running solver: 17436959026 now, 17436968062 peak
 ```
 
 ## Changes from the original TypeScript program

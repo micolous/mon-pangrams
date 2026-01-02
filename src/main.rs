@@ -1,5 +1,9 @@
+#[cfg(feature = "memory-stats")]
+mod memory;
 mod pronunciation;
 
+#[cfg(feature = "memory-stats")]
+use crate::memory::get_memory_stats;
 use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
 use clap::Parser;
 use std::{
@@ -150,6 +154,13 @@ fn main() {
     frequency.sort();
     // println!("frequency -> phone_id: {frequency:?}");
 
+    #[cfg(feature = "memory-stats")]
+    {
+        let (now, peak) = get_memory_stats();
+        println!();
+        println!("Memory usage before running solver: {now} now, {peak} peak");
+    }
+
     println!();
     println!("Finding a solution...");
 
@@ -200,6 +211,8 @@ fn main() {
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
     let mut solution_count = 0;
+    let mut peak_queue_len = queue.len();
+    let mut peak_candidate_len = 0;
 
     while let Some(step) = queue.pop_front() {
         if step.mons.len() + 1 >= best_length {
@@ -221,6 +234,7 @@ fn main() {
 
         let mut list_of_solutions = solve(&lookup, &step, max_coverage);
         // println!("solver gave {} solutions", list_of_solutions.len());
+        peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
         list_of_solutions.sort_by_key(|s| u32::MAX - s.coverage.count_ones());
 
         for solution in list_of_solutions {
@@ -257,8 +271,15 @@ fn main() {
         }
 
         // println!("{} queued solutions, {best_length} is best", queue.len());
+        peak_queue_len = peak_queue_len.max(queue.len());
     }
 
     println!();
-    println!("Done, tried {solution_count} solutions");
+    println!("Done, tried {solution_count} candidates, {peak_queue_len} peak queue length, {peak_candidate_len} peak solver length");
+
+    #[cfg(feature = "memory-stats")]
+    {
+        let (now, peak) = get_memory_stats();
+        println!("Memory usage after running solver: {now} now, {peak} peak");
+    }
 }
