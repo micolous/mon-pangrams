@@ -28,7 +28,6 @@ impl BitSet {
 
     pub fn iter(&self) -> impl Iterator<Item = usize> + use<'_> {
         (0..64usize)
-            .into_iter()
             .filter(|n| self.bits & (1 << *n) != 0)
     }
 

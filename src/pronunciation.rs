@@ -16,8 +16,7 @@ pub fn phoneme_index(phoneme: char) -> Option<usize> {
 
 /// Reader for pronunciation files
 pub struct PronunciationReader<R> {
-    f: std::io::Lines<R>,
-    next_id: u16,
+    lines: std::io::Lines<R>,
 }
 
 /// A Pokémon's pronunciation entry
@@ -29,8 +28,6 @@ pub struct Pokémon {
     pub ipa: String,
     /// The mask of phonemes that appear in this Pokémon's IPA
     pub phonemes_mask: BitSet,
-    /// ID of the pokemon; Actually a line number
-    pub id: u16,
 }
 
 impl<R> PronunciationReader<R>
@@ -40,8 +37,7 @@ where
     /// Read pronunciation data file
     pub fn new(f: R) -> Self {
         Self {
-            f: f.lines(),
-            next_id: 0,
+            lines: f.lines(),
         }
     }
 }
@@ -54,7 +50,7 @@ where
 
     /// Read the next [Pokemon] in the file.
     fn next(&mut self) -> Option<Result<Pokémon>> {
-        while let Some(line_read) = self.f.next() {
+        for line_read in self.lines.by_ref() {
             let line = match line_read {
                 Ok(line) => line,
                 Err(e) => return Some(Err(e.into())),
@@ -70,9 +66,7 @@ where
                 continue;
             };
 
-            let id = self.next_id;
-            self.next_id += 1;
-            return Some(Pokémon::new(name, ipa, id));
+            return Some(Pokémon::new(name, ipa));
         }
 
         // EOF
@@ -81,7 +75,7 @@ where
 }
 
 impl Pokémon {
-    fn new(name: &str, ipa: &str, id: u16) -> Result<Self> {
+    fn new(name: &str, ipa: &str) -> Result<Self> {
         let name = name.trim();
         let ipa = clean_pronunciation(ipa)?;
 
@@ -89,7 +83,6 @@ impl Pokémon {
             name: name.to_string(),
             phonemes_mask: ipa.chars().flat_map(phoneme_index).collect(),
             ipa,
-            id,
         })
     }
 }
