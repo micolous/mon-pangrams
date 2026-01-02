@@ -26,19 +26,26 @@ If you don't want to run this yourself, here are the solutions that my program c
 
 ## Building / running
 
-Clone the repository with submodules to pull in Graham's original CSV files. Otherwise, you'll need
-to [fetch them yourself][1].
+1.  [Install a recent Rust toolchain][2].
 
-You'll need [to install a recent Rust toolchain][2], then run:
+2.  Clone the repository with submodules to pull in Graham's original CSV files:
 
-```sh
-cargo build --release
+    ```sh
+    git clone --recursive https://github.com/micolous/mon-pangrams.git
+    ```
 
-# Or to build with memory stats reporting (which makes it slower):
-cargo build --release --features memory-stats
-```
+    Otherwise, you'll need to [fetch them yourself][1].
 
-Then run with:
+3.  Build the program:
+
+    ```sh
+    cargo build --release
+
+    # Or to build with memory stats reporting:
+    cargo build --release --features memory-stats
+    ```
+
+Then you can run it with:
 
 ```sh
 ./target/release/mon-pangrams pokemon-phonetic-pangrams/pokemon_gen_1_ipa_pronunciations.csv
