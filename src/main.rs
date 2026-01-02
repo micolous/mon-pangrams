@@ -24,7 +24,19 @@ struct Opts {
 struct Solution<'a> {
     mons: Vec<&'a Pokémon>,
     coverage: u64,
-    cache_key: Vec<u16>,
+}
+
+impl Solution<'_> {
+    /// Cache key for visited sets of Pokémon.
+    ///
+    /// Rather than keep a list of exactly which Pokémon we visited (and keep it sorted to deal with
+    /// equivalent paths), this just uses the `coverage` and `mons.len()`.
+    ///
+    /// This introduces collisions to reduce our search space: what matters is the coverage we
+    /// acquired for the number of Pokémon in the list.
+    pub fn cache_key(&self) -> u64 {
+        self.coverage | ((self.mons.len() as u64) << MON_PHONEMES.len())
+    }
 }
 
 fn solve<'a>(
@@ -57,15 +69,7 @@ fn solve<'a>(
             let mut mons = existing_solution.mons.clone();
             mons.push(mon);
 
-            let mut cache_key = existing_solution.cache_key.clone();
-            let i = cache_key.partition_point(|&x| x <= mon.id);
-            cache_key.insert(i, mon.id);
-
-            let solution = Solution {
-                mons,
-                coverage,
-                cache_key,
-            };
+            let solution = Solution { mons, coverage };
 
             if coverage == max_coverage {
                 // We have a solution, return this and nothing more
@@ -168,7 +172,6 @@ fn main() {
     let mut initial_solution = Solution {
         mons: Vec::new(),
         coverage: 0,
-        cache_key: Vec::new(),
     };
 
     for (count, phone_id) in frequency {
@@ -189,10 +192,6 @@ fn main() {
 
         initial_solution.coverage = coverage;
         initial_solution.mons.push(mon);
-
-        // We don't need to update the cache key for these initial solutions. The solver wouldn't
-        // consider these mon as their other phonemes will be pruned later, and they also won't
-        // improve coverage.
     }
 
     // We have some initial solution
@@ -242,7 +241,7 @@ fn main() {
         for solution in list_of_solutions {
             solution_count += 1;
 
-            if cache.insert(solution.cache_key.clone()) {
+            if cache.insert(solution.cache_key()) {
                 if solution.coverage == max_coverage {
                     best_length = solution.mons.len();
                     print!(" Solution #{solution_count} ({best_length} Pokémon): ");

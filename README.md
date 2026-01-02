@@ -22,10 +22,6 @@ Then run with:
 ./target/release/mon-pangrams pokemon-phonetic-pangrams/pokemon_gen_1_ipa_pronunciations.csv
 ```
 
-> [!NOTE]
-> This program does an exhaustive search, so searching _all_ Pokémon generations is **slow** and
-> uses **a lot of RAM** (around 16 GiB).
-
 ## Example output
 
 Generation 1:
@@ -214,7 +210,7 @@ Finding a solution...
  Solution #69 (11 Pokémon): Persian, Vulpix, Blastoise, Drowzee, Venomoth, Sandshrew, Primeape, Exeggcute, Hitmonchan, Jynx, Wigglytuff
  Solution #104466 (10 Pokémon): Persian, Vulpix, Blastoise, Meowth, Shellder, Primeape, Cubone, Hitmonchan, Jigglypuff, Weezing
 
-Done, tried 348730 candidates, 60 peak queue length, 18 peak solver length, 218926 cache entries
+Done, tried 56636 candidates, 39 peak queue length, 18 peak solver length, 10965 cache entries
 ```
 
 Running with all generations finds the first solution quickly, but takes several minutes and 16 GiB
@@ -229,8 +225,8 @@ There are 749 Pokémon that do not use a subset of another's phonemes:
 Finding a solution...
  Solution #140 (9 Pokémon): Slither Wing, Typhlosion, Noibat, Dragapult, Venomoth, Houndoom, Exeggcute, Shaymin, Jirachi
 
-Done, tried 312024566 candidates, 206 peak queue length, 102 peak solver length, 310028646 cache entries
-Memory usage after running solver: 16815325862 now, 16815335012 peak
+Done, tried 6566136 candidates, 63 peak queue length, 102 peak solver length, 468910 cache entries
+Memory usage after running solver: 7486892 now, 7493636 peak
 ```
 
 ## Changes from the original TypeScript program
@@ -241,8 +237,25 @@ Memory usage after running solver: 16815325862 now, 16815335012 peak
   This program cleans up the IPA phonemes, removes known-wrong characters. If there are any unknown
   characters, it `panic`s.
 
+- This program automatically skips any potential solution which isn't better than the last best
+  solution, so you'll get at most one answer for each length.
+
+- This program considers a solution to be "complete" if all phonemes in the input data are
+  represented in a solution, not just if it covers all 38 phonemes in US English Pokémon names.
+
 - This program uses a `u64` bitmask to indicate which phonemes were represented, rather than a `Set`
   of one-codepoint strings.
+
+  This makes things faster, and use less memory.
+
+- This program uses `u64` cache key of `bitmask | (path.len() << 38)`, rather than a `String` of
+  UTF-16 codepoints for each Pokémon ID visited.
+
+  This introduces a bunch of collisions to exclude equivalent paths: if we have a set of phoenemes
+  represented (which we already track as a `u64`) for a given path length, then another set of
+  Pokémon of the same length that achieves the same coverage is equivalent and not worth exploring.
+
+  This makes things **much** faster, and use **a lot** less memory.
 
 - This program considers all phonemes used by exactly 1 Pokémon as part of the initial solution,
   rather than going into a solve loop for each of them individually.
@@ -250,12 +263,6 @@ Memory usage after running solver: 16815325862 now, 16815335012 peak
   eg: In the set of Gen 5 Pokémon, `ʒ` and `ɔɪ` (`õ`) are each in one Pokémon. This program's
   initial solution includes both Duosion and Purrloin, rather than trying an empty initial solution
   and building a solution with each of them in the first position.
-
-- This program automatically skips any potential solution which isn't better than the last best
-  solution, so you'll get at most one answer for each length.
-
-- This program considers a solution to be "complete" if all phonemes in the input data are
-  represented in a solution, not just if it covers all 38 phonemes in US English Pokémon names.
 
 [0]: https://graham.build/s/a-blog/034-pokemon-gen-1-phonetic-pangram/
 [1]: https://codeberg.org/anvilfood/pokemon-phonetic-pangrams/
