@@ -31,6 +31,10 @@ impl BitSet {
             .into_iter()
             .filter(|n| self.bits & (1 << *n) != 0)
     }
+
+    pub fn into_inner(self) -> u64 {
+        self.bits
+    }
 }
 
 impl FromIterator<usize> for BitSet {
