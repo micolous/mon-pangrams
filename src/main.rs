@@ -1,20 +1,20 @@
 #[cfg(feature = "memory-stats")]
 use crate::memory::get_memory_stats;
-use crate::pronunciation::{phoneme_index, BitSet, Pokémon, PronunciationReader, MON_PHONEMES};
+use crate::pronunciation::{phoneme_index, Pokémon, PronunciationReader, MON_PHONEMES};
+use crate::set::BitSet;
 use clap::Parser;
 use eyre::Result;
 use itertools::Itertools;
-use std::{
-    cmp::Reverse,
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fs::File,
-    io::BufReader,
-    path::PathBuf,
-};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
 
 #[cfg(feature = "memory-stats")]
 mod memory;
 mod pronunciation;
+mod set;
 
 #[derive(Parser)]
 struct Opts {
