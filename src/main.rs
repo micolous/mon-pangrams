@@ -207,7 +207,7 @@ fn main() {
 
     let distinct_pokemon_count = mons.len();
     if !opts.summary {
-        if opts.no_prune {
+        if !opts.no_prune {
             println!("There are {distinct_pokemon_count} Pokémon that do not use a subset of another's phonemes:");
         }
         for (i, mon) in mons.iter().enumerate() {
