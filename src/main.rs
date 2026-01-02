@@ -20,7 +20,7 @@ struct Opts {
 struct Solution<'a> {
     mons: Vec<&'a Pokémon>,
     coverage: u64,
-    cache_key: String,
+    cache_key: Vec<u16>,
 }
 
 fn solve<'a>(
@@ -54,11 +54,8 @@ fn solve<'a>(
             mons.push(mon);
 
             let mut cache_key = existing_solution.cache_key.clone();
-            // This is fine until we want to consider more than 0xD800 Pokémon
-            cache_key.push(char::from_u32(mon.id.into()).unwrap());
-            let mut cache_key: Vec<char> = cache_key.chars().collect();
-            cache_key.sort();
-            let cache_key = String::from_iter(cache_key);
+            let i = cache_key.partition_point(|&x| x <= mon.id);
+            cache_key.insert(i, mon.id);
 
             let solution = Solution {
                 mons,
@@ -85,6 +82,7 @@ fn main() {
     let f = BufReader::new(File::open(opts.input).unwrap());
     let reader = PronunciationReader::new(f);
     let mut mons = reader.into_vec().unwrap();
+    println!("Read {} Pokémon", mons.len());
 
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
@@ -157,7 +155,7 @@ fn main() {
     let mut initial_solution = Solution {
         mons: Vec::new(),
         coverage: 0,
-        cache_key: String::new(),
+        cache_key: Vec::new(),
     };
 
     for (count, phone_id) in frequency {
@@ -177,9 +175,8 @@ fn main() {
         }
 
         initial_solution.coverage = coverage;
-        initial_solution
-            .cache_key
-            .push(char::from_u32(mon.id.into()).unwrap());
+        let i = initial_solution.cache_key.partition_point(|&x| x <= mon.id);
+        initial_solution.cache_key.insert(i, mon.id);
         initial_solution.mons.push(mon);
     }
 
@@ -188,11 +185,6 @@ fn main() {
         assert!(!initial_solution.mons.is_empty());
         // Remove entries that are represented by our unique phone Pokemon.
         mons_by_phone.retain(|&k, _| (1 << k) & initial_solution.coverage == 0);
-
-        // Fix up the initial cache key
-        let mut cache_key: Vec<char> = initial_solution.cache_key.chars().collect();
-        cache_key.sort();
-        initial_solution.cache_key = String::from_iter(cache_key);
     } else {
         assert!(initial_solution.mons.is_empty());
     }
