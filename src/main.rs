@@ -19,8 +19,11 @@ mod set;
 #[derive(Parser)]
 struct Opts {
     /// Input filename
-    #[clap()]
     input: PathBuf,
+
+    /// Emit less debugging output, and a solution summary for the README
+    #[clap(long)]
+    summary: bool,
 }
 
 #[derive(Debug, Default)]
@@ -92,7 +95,7 @@ fn main() -> Result<()> {
 
     let f = BufReader::new(File::open(opts.input)?);
     let mut mons = PronunciationReader::new(f).collect::<Result<Vec<_>>>()?;
-    println!("Read {} Pokémon", mons.len());
+    println!("Read {count} Pokémon", count = mons.len());
 
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
@@ -116,8 +119,8 @@ fn main() -> Result<()> {
     }
 
     println!(
-        "There are {} Pokémon that do not use a subset of another's phonemes:",
-        mons.len()
+        "There are {count} Pokémon that do not use a subset of another's phonemes:",
+        count = mons.len()
     );
     for (i, mon) in mons.iter().enumerate() {
         println!(
@@ -144,15 +147,21 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    println!();
-    println!("{} phonemes represented:", mons_by_phone.len());
+    if !opts.summary {
+        println!();
+        println!("{count} phonemes represented:", count = mons_by_phone.len());
+    }
     // (frequency -> phone), sorted from lowest to highest frequency
     let frequency: Vec<(usize, char)> = mons_by_phone
         .iter()
-        .map(|(&phone, mons)| (mons.len(), phone))
+        .map(|(&phone, mons)| {
+            if !opts.summary {
+                println!("  {phone}: {count:3} Pokémon");
+            }
+            (mons.len(), phone)
+        })
         .sorted()
         .collect();
-    // println!("frequency -> phone: {frequency:?}");
 
     #[cfg(feature = "memory-stats")]
     {
@@ -161,7 +170,9 @@ fn main() -> Result<()> {
         println!("Memory usage before running solver: {now} now, {peak} peak");
     }
 
-    println!();
+    if !opts.summary {
+        println!();
+    }
     println!("Finding a solution...");
 
     // Check if there are any unique phonemes first, and include them in the initial solution
@@ -204,6 +215,7 @@ fn main() -> Result<()> {
     let mut solution_count = 0;
     let mut peak_queue_len = queue.len();
     let mut peak_candidate_len = 0;
+    let mut best_solution = String::new();
 
     while let Some(step) = queue.pop_front() {
         if step.mons.len() + 1 >= best_length {
@@ -234,17 +246,20 @@ fn main() -> Result<()> {
             if cache.insert(solution.cache_key()) {
                 if solution.coverage == max_coverage {
                     best_length = solution.mons.len();
-                    print!(" Solution #{solution_count} ({best_length} Pokémon): ");
                     let mut first = true;
+                    best_solution.clear();
                     for mon in solution.mons {
                         if first {
                             first = false;
                         } else {
-                            print!(", ");
+                            best_solution.push_str(", ");
                         }
-                        print!("{}", mon.name);
+                        best_solution.push_str(&mon.name);
                     }
-                    println!();
+
+                    println!(
+                        " Solution #{solution_count} ({best_length} Pokémon): {best_solution}"
+                    );
 
                     // Don't consider more solutions at this length (issue with gen3)
                     break;
@@ -269,6 +284,10 @@ fn main() -> Result<()> {
         {peak_candidate_len} peak solver length, {cache_len} cache entries",
         cache_len = cache.len()
     );
+
+    if opts.summary {
+        println!("| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | **{best_length} Pokémon**: {best_solution} |");
+    }
 
     #[cfg(feature = "memory-stats")]
     {
