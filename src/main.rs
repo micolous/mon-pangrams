@@ -1,6 +1,6 @@
 mod pronunciation;
 
-use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONES};
+use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
 use clap::Parser;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -44,7 +44,7 @@ fn solve<'a>(
         }
 
         for mon in *mons {
-            let coverage = existing_solution.coverage | mon.phones_mask;
+            let coverage = existing_solution.coverage | mon.phonemes_mask;
             if coverage == existing_solution.coverage {
                 // unchanged coverage, skip it
                 continue;
@@ -86,7 +86,9 @@ fn main() {
 
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
-    mons.sort_by_key(|e| e.phones_mask | ((e.phones_mask.count_ones() as u64) << MON_PHONES.len()));
+    mons.sort_by_key(|e| {
+        e.phonemes_mask | ((e.phonemes_mask.count_ones() as u64) << MON_PHONEMES.len())
+    });
     mons.reverse();
 
     // Working from the end of the list (= less bits), remove entries that are subsets of an earlier
@@ -94,9 +96,9 @@ fn main() {
     let mut max_coverage = 0;
     let mut i = mons.len() - 1;
     while i > 0 {
-        let mask = mons[i].phones_mask;
+        let mask = mons[i].phonemes_mask;
         for o in &mons[..i] {
-            if o.phones_mask | mask == o.phones_mask {
+            if o.phonemes_mask | mask == o.phonemes_mask {
                 // This mon is a subset of another mon
                 mons.remove(i);
                 break;
@@ -114,16 +116,16 @@ fn main() {
         println!(
             "  [{i:03}] = {:20}, mask: {:#12x}, bits: {:2}",
             mon.name,
-            mon.phones_mask,
-            mon.phones_mask.count_ones(),
+            mon.phonemes_mask,
+            mon.phonemes_mask.count_ones(),
         );
     }
 
     // phone bit -> Vec<&Pokemon> that has it
     let mut mons_by_phone: BTreeMap<u8, Vec<&Pokémon>> = BTreeMap::new();
     for mon in mons.iter() {
-        for b in 0..(MON_PHONES.len() as u8) {
-            if mon.phones_mask & (1 << b) != 0 {
+        for b in 0..(MON_PHONEMES.len() as u8) {
+            if mon.phonemes_mask & (1 << b) != 0 {
                 if let Some(e) = mons_by_phone.get_mut(&b) {
                     e.push(mon);
                 } else {
@@ -134,11 +136,11 @@ fn main() {
     }
 
     println!();
-    println!("{} phones represented:", mons_by_phone.len());
+    println!("{} phonemes represented:", mons_by_phone.len());
     // frequency -> phone ID
-    let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONES.len());
+    let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONEMES.len());
     for (&k, v) in &mons_by_phone {
-        let phone = MON_PHONES[k as usize];
+        let phone = MON_PHONEMES[k as usize];
         let count = v.len() as u16;
         println!("  {phone}: {count:3} Pokémon");
         frequency.push((count, k));
@@ -151,7 +153,7 @@ fn main() {
     println!();
     println!("Finding a solution...");
 
-    // Check if there are any unique phones first, and include them in the initial solution
+    // Check if there are any unique phonemes first, and include them in the initial solution
     let mut initial_solution = Solution {
         mons: Vec::new(),
         coverage: 0,
@@ -168,7 +170,7 @@ fn main() {
         assert_eq!(mons.len(), 1);
         let mon = mons.remove(0);
 
-        let coverage = initial_solution.coverage | mon.phones_mask;
+        let coverage = initial_solution.coverage | mon.phonemes_mask;
         if coverage == initial_solution.coverage {
             // We already have something to handle this
             continue;

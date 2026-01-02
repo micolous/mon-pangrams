@@ -1,10 +1,9 @@
 //! Load in pronunciation data
 
-/// All the phones that can appear in a Pokémon's name.
-pub const MON_PHONES: [char; 40] = [
+/// All the phonemes that can appear in a Pokémon's name.
+pub const MON_PHONEMES: [char; 38] = [
     'b', 'd', 'f', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'p', 's', 't', 'u', 'v', 'w', 'z', 'Ø', 'ä',
-    'æ', 'ï', 'ð', 'õ', 'ö', 'ŋ', 'ɑ', 'ə', 'ɚ', 'ɛ', 'ɡ', 'ɪ', 'ɹ', 'ʃ', 'ʊ', 'ʒ', 'ʔ', 'ʤ', 'ʧ',
-    'θ', 'ḥ',
+    'æ', 'ï', 'ð', 'õ', 'ö', 'ŋ', 'ɑ', 'ə', 'ɚ', 'ɛ', 'ɡ', 'ɪ', 'ɹ', 'ʃ', 'ʊ', 'ʒ', 'ʤ', 'ʧ', 'θ',
 ];
 
 /// Reader for pronunciation files
@@ -20,8 +19,8 @@ pub struct Pokémon {
     pub name: String,
     /// Its pronunciation, in IPA
     pub ipa: String,
-    /// The mask of phones that appear in this Pokémon's IPA
-    pub phones_mask: u64,
+    /// The mask of phonemes that appear in this Pokémon's IPA
+    pub phonemes_mask: u64,
     /// Actually a line number
     pub id: u16,
 }
@@ -77,17 +76,17 @@ impl Pokémon {
         let name = name.trim();
         let ipa = clean_pronunciation(ipa);
 
-        let mut phones_mask = 0;
-        for (pos, &phone) in MON_PHONES.iter().enumerate() {
+        let mut phonemes_mask = 0;
+        for (pos, &phone) in MON_PHONEMES.iter().enumerate() {
             if ipa.contains(phone) {
-                phones_mask |= 1 << pos;
+                phonemes_mask |= 1 << pos;
             }
         }
 
         Pokémon {
             name: name.to_string(),
             ipa,
-            phones_mask,
+            phonemes_mask,
             id,
         }
     }
@@ -103,34 +102,43 @@ pub fn clean_pronunciation(mut i: &str) -> String {
         i = j.trim();
     }
 
-    let mut i = i.to_string();
+    let mut o = i.to_string();
+
+    // Hydreigon; probably a typo because the combining character at the start, and that phoneme
+    // isn't used in US English.
+    o = o.replace("\u{329}h", "h");
 
     // Use single codepoints for digraphs
-    i = i.replace("\u{329}h", "ḥ"); // not correct, but is a single codepoint
-    i = i.replace("dʒ", "ʤ");
-    i = i.replace("tʃ", "ʧ");
-    i = i.replace("oʊ", "ö");
-    i = i.replace("aɪ", "ï");
-    i = i.replace("eɪ", "ä");
-    i = i.replace("ɔɪ", "õ");
-    i = i.replace("aʊ", "Ø");
+    o = o.replace("dʒ", "ʤ");
+    o = o.replace("tʃ", "ʧ");
+    o = o.replace("oʊ", "ö");
+    o = o.replace("aɪ", "ï");
+    o = o.replace("eɪ", "ä");
+    o = o.replace("ɔɪ", "õ");
+    o = o.replace("aʊ", "Ø");
 
-    i = i.replace("ɑɪ", "ï"); //Some names (arcanine, omanyte) used the wrong diphthong
-    i = i.replace("r", "ɹ"); //English has no r, only ɹ
-    i = i.replace("g", "ɡ"); //Use ɡ (the actual phoneme), not g
-    i = i.replace("a", "ɑ"); //Use ɑ (the actual phoneme), not a
+    o = o.replace("ɑɪ", "ï"); //Some names (arcanine, omanyte) used the wrong diphthong
+    o = o.replace("r", "ɹ"); //English has no r, only ɹ
+    o = o.replace("g", "ɡ"); //Use ɡ (the actual phoneme), not g
+    o = o.replace("a", "ɑ"); //Use ɑ (the actual phoneme), not a
 
-    i = i.replace("ɾ", "d"); //GA treats ɾ as d
-    i = i.replace("ʌ", "ə"); //GA treats ʌ as ə
-    i = i.replace("ɜ", "ə"); //GA treats ɜ as ə
-    i = i.replace("ɝ", "ɚ"); //GA treats ɜr as ər
-    i = i.replace("ɔ", "ɑ"); //GA treats ɔ as ɑ
+    o = o.replace("ɾ", "d"); //GA treats ɾ as d
+    o = o.replace("ʌ", "ə"); //GA treats ʌ as ə
+    o = o.replace("ɜ", "ə"); //GA treats ɜ as ə
+    o = o.replace("ɝ", "ɚ"); //GA treats ɜr as ər
+    o = o.replace("ɔ", "ɑ"); //GA treats ɔ as ɑ
 
-    // Remove things that aren't phones
-    let non_phoeneme = " ːˈˌ";
-    i = i.replace(|p| non_phoeneme.contains(p), "");
+    // Remove things that aren't phonemes
+    let non_phoeneme = " ːˈˌʔ";
+    o = o.replace(|p| non_phoeneme.contains(p), "");
 
-    i
+    // If we hit an error here, then this function or MON_PHONEMES needs updating.
+    assert!(
+        o.chars().all(|c| MON_PHONEMES.contains(&c)),
+        "unexpected character after cleaning {o:?}: {i:?}",
+    );
+
+    o
 }
 
 #[cfg(test)]
@@ -139,7 +147,8 @@ mod test {
 
     #[test]
     fn cleanup() {
-        assert_eq!("ˈniːdöɹæn", clean_pronunciation("/ˈniːdoʊɹæn (ˈfiːmeɪl)/"));
-        assert_eq!("ˈʤɪɡliːpəf", clean_pronunciation("/ˈdʒɪɡliːpʌf/"));
+        assert_eq!("nidöɹæn", clean_pronunciation("/ˈniːdoʊɹæn (ˈfiːmeɪl)/"));
+        assert_eq!("ʤɪɡlipəf", clean_pronunciation("/ˈdʒɪɡliːpʌf/"));
+        assert_eq!("hïdɹïɡən", clean_pronunciation("/\u{329}haɪˈdraɪɡən/"))
     }
 }
