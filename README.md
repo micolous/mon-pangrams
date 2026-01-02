@@ -1,13 +1,13 @@
 # mon-pangrams
 
-My lazy Rust port of [`pokemon-phonetic-pangrams`][0], based on [this blog post][0].
+My lazy Rust port of [`pokemon-phonetic-pangrams`][1], based on [Graham's blog post][0].
 
 ## Building / running
 
 Clone the repository with submodules to pull in Graham's original CSV files. Otherwise, you'll need
-to fetch them yourself.
+to [fetch them yourself][1].
 
-You'll need a recent Rust toolchain, then run:
+You'll need [to install a recent Rust toolchain][2], then run:
 
 ```sh
 cargo build --release
@@ -20,9 +20,11 @@ Then run with:
 ```
 
 > [!NOTE]
-> Running with data from _all_ Pokémon generations is slow.
+> This does an exhaustive search, so running with data from _all_ Pokémon generations is slow.
 
 ## Example output
+
+Generation 1:
 
 ```
 $ ./target/release/mon-pangrams pokemon-phonetic-pangrams/pokemon_gen_1_ipa_pronunciations.csv
@@ -232,3 +234,5 @@ Done, tried 348730 solutions
   represented in a solution, not just if it covers all 40 phonemes in US English Pokémon names.
 
 [0]: https://graham.build/s/a-blog/034-pokemon-gen-1-phonetic-pangram/
+[1]: https://codeberg.org/anvilfood/pokemon-phonetic-pangrams/
+[2]: https://rust-lang.org/tools/install/
