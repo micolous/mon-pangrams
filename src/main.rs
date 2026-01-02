@@ -188,15 +188,17 @@ fn main() {
         }
 
         initial_solution.coverage = coverage;
-        let i = initial_solution.cache_key.partition_point(|&x| x <= mon.id);
-        initial_solution.cache_key.insert(i, mon.id);
         initial_solution.mons.push(mon);
+
+        // We don't need to update the cache key for these initial solutions. The solver wouldn't
+        // consider these mon as their other phonemes will be pruned later, and they also won't
+        // improve coverage.
     }
 
     // We have some initial solution
     if initial_solution.coverage != 0 {
         assert!(!initial_solution.mons.is_empty());
-        // Remove entries that are represented by our unique phone Pokemon.
+        // Keep phonemes that are not represented by our unique-phoneme Pokemon.
         mons_by_phone.retain(|&k, _| (1 << k) & initial_solution.coverage == 0);
     } else {
         assert!(initial_solution.mons.is_empty());
@@ -275,7 +277,7 @@ fn main() {
     }
 
     println!();
-    println!("Done, tried {solution_count} candidates, {peak_queue_len} peak queue length, {peak_candidate_len} peak solver length");
+    println!("Done, tried {solution_count} candidates, {peak_queue_len} peak queue length, {peak_candidate_len} peak solver length, {} cache entries", cache.len());
 
     #[cfg(feature = "memory-stats")]
     {

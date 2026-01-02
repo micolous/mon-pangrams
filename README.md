@@ -214,7 +214,7 @@ Finding a solution...
  Solution #69 (11 Pokémon): Persian, Vulpix, Blastoise, Drowzee, Venomoth, Sandshrew, Primeape, Exeggcute, Hitmonchan, Jynx, Wigglytuff
  Solution #104466 (10 Pokémon): Persian, Vulpix, Blastoise, Meowth, Shellder, Primeape, Cubone, Hitmonchan, Jigglypuff, Weezing
 
-Done, tried 348730 candidates, 60 peak queue length, 18 peak solver length
+Done, tried 348730 candidates, 60 peak queue length, 18 peak solver length, 218926 cache entries
 ```
 
 Running with all generations finds the first solution quickly, but takes several minutes and 16 GiB
@@ -229,8 +229,8 @@ There are 749 Pokémon that do not use a subset of another's phonemes:
 Finding a solution...
  Solution #140 (9 Pokémon): Slither Wing, Typhlosion, Noibat, Dragapult, Venomoth, Houndoom, Exeggcute, Shaymin, Jirachi
 
-Done, tried 312024566 candidates, 206 peak queue length, 102 peak solver length
-Memory usage after running solver: 17436959026 now, 17436968062 peak
+Done, tried 312024566 candidates, 206 peak queue length, 102 peak solver length, 310028646 cache entries
+Memory usage after running solver: 16815325862 now, 16815335012 peak
 ```
 
 ## Changes from the original TypeScript program
