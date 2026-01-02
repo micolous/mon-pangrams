@@ -7,6 +7,7 @@ use crate::memory::get_memory_stats;
 use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
 use clap::Parser;
 use std::{
+    cmp::Reverse,
     collections::{BTreeMap, BTreeSet, VecDeque},
     fs::File,
     io::BufReader,
@@ -102,12 +103,11 @@ fn main() {
     let pokemon_count = mons.len();
     println!("Read {pokemon_count} Pokémon");
 
-    // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
+    // Sort by number of one-bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
     mons.sort_by_key(|e| {
-        e.phonemes_mask | ((e.phonemes_mask.count_ones() as u64) << MON_PHONEMES.len())
+        Reverse(e.phonemes_mask | ((e.phonemes_mask.count_ones() as u64) << MON_PHONEMES.len()))
     });
-    mons.reverse();
 
     // Working from the end of the list (= less bits), remove entries that are subsets of an earlier
     // entry.
@@ -254,7 +254,7 @@ fn main() {
         let mut list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
         // println!("solver gave {} solutions", list_of_solutions.len());
         peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
-        list_of_solutions.sort_by_key(|s| u32::MAX - s.coverage.count_ones());
+        list_of_solutions.sort_by_key(|s| Reverse(s.coverage.count_ones()));
 
         for solution in list_of_solutions {
             solution_count += 1;

@@ -1062,13 +1062,13 @@ There are 749 Pokémon that do not use a subset of another's phonemes:
   ʧ:  51 Pokémon
   θ:  23 Pokémon
 
-Memory usage before running solver: 142364 now, 142212 peak
+Memory usage before running solver: 142362 now, 142210 peak
 
 Finding a solution...
  Solution #51 (9 Pokémon): Slither Wing, Typhlosion, Spoink, Granbull, Venomoth, Houndoom, Exeggutor, Shaymin, Jirachi
 
 Done, tried 468910 candidates, 63 peak queue length, 26 peak solver length, 468911 cache entries
-Memory usage after running solver: 7471300 now, 7472924 peak
+Memory usage after running solver: 7471298 now, 7472922 peak
 ./target/release/mon-pangrams   0.73s user 0.01s system 99% cpu 0.736 total
 ```
 
