@@ -133,21 +133,19 @@ fn main() -> Result<()> {
         .reduce(BitOr::bitor)
         .ok_or_eyre("no pokemon loaded")?;
 
-    let non_redundant_mons: Vec<Pokémon> = original_mons
-        .iter()
-        .enumerate()
-        .filter_map(|(i, mon)| {
-            let preceding_mons = &original_mons[..i];
-            if preceding_mons
+    let non_redundant_mons = {
+        let mut res: Vec<Pokémon> = vec![];
+        for mon in &original_mons {
+            if res
                 .iter()
                 .any(|preceding_mon| mon.phonemes_mask.is_subset_of(preceding_mon.phonemes_mask))
             {
-                None // exclude all pokemon that are covered by another's pronunciation
-            } else {
-                Some(mon.clone())
+                continue; // exclude all pokemon that are covered by another's pronunciation
             }
-        })
-        .collect();
+            res.push(mon.clone());
+        }
+        res
+    };
 
     println!(
         "There are {count} Pokémon that do not use a subset of another's phonemes:",
