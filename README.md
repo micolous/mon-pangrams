@@ -240,9 +240,6 @@ Memory usage after running solver: 7486892 now, 7493636 peak
 - This program automatically skips any potential solution which isn't better than the last best
   solution, so you'll get at most one answer for each length.
 
-- This program considers a solution to be "complete" if all phonemes in the input data are
-  represented in a solution, not just if it covers all 38 phonemes in US English Pokémon names.
-
 - This program uses a `u64` bitmask to indicate which phonemes were represented, rather than a `Set`
   of one-codepoint strings.
 
