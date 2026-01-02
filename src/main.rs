@@ -18,6 +18,10 @@ struct Opts {
     /// Input filename
     #[clap()]
     input: PathBuf,
+
+    /// Emit less debugging output, and a solution summary for the README
+    #[clap(long)]
+    summary: bool,
 }
 
 #[derive(Debug)]
@@ -90,7 +94,8 @@ fn main() {
     let f = BufReader::new(File::open(opts.input).unwrap());
     let reader = PronunciationReader::new(f);
     let mut mons = reader.into_vec().unwrap();
-    println!("Read {} Pokémon", mons.len());
+    let pokemon_count = mons.len();
+    println!("Read {pokemon_count} Pokémon");
 
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
@@ -116,17 +121,17 @@ fn main() {
         max_coverage |= mask;
     }
 
-    println!(
-        "There are {} Pokémon that do not use a subset of another's phonemes:",
-        mons.len()
-    );
-    for (i, mon) in mons.iter().enumerate() {
-        println!(
-            "  [{i:03}] = {:20} mask: {:#12x}, bits: {:2}",
-            mon.name,
-            mon.phonemes_mask,
-            mon.phonemes_mask.count_ones(),
-        );
+    let distinct_pokemon_count = mons.len();
+    if !opts.summary {
+        println!("There are {distinct_pokemon_count} Pokémon that do not use a subset of another's phonemes:");
+        for (i, mon) in mons.iter().enumerate() {
+            println!(
+                "  [{i:03}] = {:20} mask: {:#12x}, bits: {:2}",
+                mon.name,
+                mon.phonemes_mask,
+                mon.phonemes_mask.count_ones(),
+            );
+        }
     }
 
     // phone bit -> Vec<&Pokemon> that has it
@@ -143,14 +148,19 @@ fn main() {
         }
     }
 
-    println!();
-    println!("{} phonemes represented:", mons_by_phone.len());
+    let phoneme_count = mons_by_phone.len();
+    if !opts.summary {
+        println!();
+        println!("{phoneme_count} phonemes represented:");
+    }
     // frequency -> phone ID
     let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONEMES.len());
     for (&k, v) in &mons_by_phone {
         let phone = MON_PHONEMES[k as usize];
         let count = v.len() as u16;
-        println!("  {phone}: {count:3} Pokémon");
+        if !opts.summary {
+            println!("  {phone}: {count:3} Pokémon");
+        }
         frequency.push((count, k));
     }
 
@@ -165,7 +175,9 @@ fn main() {
         println!("Memory usage before running solver: {now} now, {peak} peak");
     }
 
-    println!();
+    if !opts.summary {
+        println!();
+    }
     println!("Finding a solution...");
 
     // Check if there are any unique phonemes first, and include them in the initial solution
@@ -214,6 +226,7 @@ fn main() {
     let mut solution_count = 0;
     let mut peak_queue_len = queue.len();
     let mut peak_candidate_len = 0;
+    let mut best_solution = String::new();
 
     while let Some(step) = queue.pop_front() {
         if step.mons.len() + 1 >= best_length {
@@ -244,17 +257,20 @@ fn main() {
             if cache.insert(solution.cache_key()) {
                 if solution.coverage == max_coverage {
                     best_length = solution.mons.len();
-                    print!(" Solution #{solution_count} ({best_length} Pokémon): ");
                     let mut first = true;
+                    best_solution.clear();
                     for mon in solution.mons {
                         if first {
                             first = false;
                         } else {
-                            print!(", ");
+                            best_solution.push_str(", ");
                         }
-                        print!("{}", mon.name);
+                        best_solution.push_str(&mon.name);
                     }
-                    println!();
+
+                    println!(
+                        " Solution #{solution_count} ({best_length} Pokémon): {best_solution}"
+                    );
 
                     // Don't consider more solutions at this length (issue with gen3)
                     break;
@@ -277,6 +293,10 @@ fn main() {
 
     println!();
     println!("Done, tried {solution_count} candidates, {peak_queue_len} peak queue length, {peak_candidate_len} peak solver length, {} cache entries", cache.len());
+
+    if opts.summary {
+        println!("| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | **{best_length} Pokémon**: {best_solution} |");
+    }
 
     #[cfg(feature = "memory-stats")]
     {
