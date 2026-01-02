@@ -9,7 +9,6 @@ pub const MON_PHONEMES: [char; 38] = [
 /// Reader for pronunciation files
 pub struct PronunciationReader<R> {
     f: R,
-    next_id: u16,
 }
 
 /// A Pokémon's pronunciation entry
@@ -21,8 +20,6 @@ pub struct Pokémon {
     pub ipa: String,
     /// The mask of phonemes that appear in this Pokémon's IPA
     pub phonemes_mask: u64,
-    /// Actually a line number
-    pub id: u16,
 }
 
 impl<R> PronunciationReader<R>
@@ -31,7 +28,7 @@ where
 {
     /// Read pronunciation data file
     pub fn new(f: R) -> Self {
-        Self { f, next_id: 0 }
+        Self { f }
     }
 
     /// Read the next [Pokemon] in the file.
@@ -50,9 +47,7 @@ where
                 continue;
             };
 
-            let id = self.next_id;
-            self.next_id += 1;
-            return Ok(Some(Pokémon::new(name, ipa, id)));
+            return Ok(Some(Pokémon::new(name, ipa)));
         }
 
         // EOF
@@ -72,7 +67,7 @@ where
 }
 
 impl Pokémon {
-    fn new(name: &str, ipa: &str, id: u16) -> Self {
+    fn new(name: &str, ipa: &str) -> Self {
         let name = name.trim();
         let ipa = clean_pronunciation(ipa);
 
@@ -87,7 +82,6 @@ impl Pokémon {
             name: name.to_string(),
             ipa,
             phonemes_mask,
-            id,
         }
     }
 }

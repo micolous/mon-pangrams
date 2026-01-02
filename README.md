@@ -241,15 +241,15 @@ There are 136 Pokémon that do not use a subset of another's phonemes:
   ʧ:  11 Pokémon
   θ:   5 Pokémon
 
-Memory usage before running solver: 24858 now, 24706 peak
+Memory usage before running solver: 23650 now, 23498 peak
 
 Finding a solution...
- Solution #69 (11 Pokémon): Persian, Vulpix, Blastoise, Drowzee, Venomoth, Sandshrew, Ninetales, Exeggutor, Hitmonchan, Jynx, Wigglytuff
- Solution #8309 (10 Pokémon): Persian, Vulpix, Blastoise, Meowth, Shellder, Primeape, Cubone, Hitmonchan, Jigglypuff, Weezing
+ Solution #41 (11 Pokémon): Persian, Vulpix, Blastoise, Drowzee, Venomoth, Sandshrew, Ninetales, Exeggutor, Hitmonchan, Jynx, Wigglytuff
+ Solution #1631 (10 Pokémon): Persian, Vulpix, Blastoise, Meowth, Shellder, Primeape, Cubone, Hitmonchan, Jigglypuff, Weezing
 
-Done, tried 56636 candidates, 39 peak queue length, 18 peak solver length, 10965 cache entries
-Memory usage after running solver: 197418 now, 200354 peak
-./target/release/mon-pangrams   0.01s user 0.00s system 90% cpu 0.015 total
+Done, tried 10965 candidates, 39 peak queue length, 18 peak solver length, 10966 cache entries
+Memory usage after running solver: 195290 now, 197218 peak
+./target/release/mon-pangrams   0.01s user 0.00s system 94% cpu 0.015 total
 ```
 
 </details>
@@ -1052,14 +1052,14 @@ There are 749 Pokémon that do not use a subset of another's phonemes:
   ʧ:  51 Pokémon
   θ:  23 Pokémon
 
-Memory usage before running solver: 152028 now, 151876 peak
+Memory usage before running solver: 142364 now, 142212 peak
 
 Finding a solution...
- Solution #140 (9 Pokémon): Slither Wing, Typhlosion, Spoink, Granbull, Venomoth, Houndoom, Exeggutor, Shaymin, Jirachi
+ Solution #51 (9 Pokémon): Slither Wing, Typhlosion, Spoink, Granbull, Venomoth, Houndoom, Exeggutor, Shaymin, Jirachi
 
-Done, tried 6566136 candidates, 63 peak queue length, 102 peak solver length, 468910 cache entries
-Memory usage after running solver: 7486892 now, 7493636 peak
-./target/release/mon-pangrams   0.99s user 0.01s system 98% cpu 1.012 total
+Done, tried 468910 candidates, 63 peak queue length, 26 peak solver length, 468911 cache entries
+Memory usage after running solver: 7471300 now, 7472924 peak
+./target/release/mon-pangrams   0.73s user 0.01s system 99% cpu 0.736 total
 ```
 
 </details>
