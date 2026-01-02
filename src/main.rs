@@ -73,7 +73,6 @@ fn solve<'a>(
     // Find the shortest list(s)
     for mons in mons_by_phone.values() {
         min_names = min_names.min(mons.len());
-        assert!(min_names > 1);
     }
 
     let mut o = Vec::new();
@@ -164,7 +163,7 @@ fn main() -> Result<()> {
     }
 
     // phone -> Vec<&Pokemon> that has it
-    let mut mons_by_phone: BTreeMap<char, Vec<&Pokémon>> = MON_PHONEMES
+    let mons_by_phone: BTreeMap<char, Vec<&Pokémon>> = MON_PHONEMES
         .iter()
         .map(|&phoneme| {
             (
@@ -181,17 +180,6 @@ fn main() -> Result<()> {
         println!();
         println!("{count} phonemes represented:", count = mons_by_phone.len());
     }
-    // (frequency -> phone), sorted from lowest to highest frequency
-    let frequency: Vec<(usize, char)> = mons_by_phone
-        .iter()
-        .map(|(&phone, mons)| {
-            if !opts.summary {
-                println!("  {phone}: {count:3} Pokémon", count = mons.len());
-            }
-            (mons.len(), phone)
-        })
-        .sorted()
-        .collect();
 
     #[cfg(feature = "memory-stats")]
     {
@@ -205,40 +193,11 @@ fn main() -> Result<()> {
     }
     println!("Finding a solution...");
 
-    // Check if there are any unique phonemes first, and include them in the initial solution
-    let mut initial_solution = Solution::default();
-
-    for (count, phone) in frequency {
-        if count > 1 {
-            break;
-        }
-
-        let mut mons = mons_by_phone.remove(&phone).unwrap();
-        assert_eq!(mons.len(), 1);
-        let mon = mons.remove(0);
-
-        if mon.phonemes_mask.is_subset_of(initial_solution.coverage) {
-            continue;
-        }
-        initial_solution.coverage |= mon.phonemes_mask;
-        initial_solution.mons.push(mon);
-    }
-
-    // We have some initial solution
-    if !initial_solution.coverage.is_empty() {
-        // Keep phonemes that are not represented by our unique-phoneme Pokemon.
-        mons_by_phone.retain(|&phone, _| {
-            !initial_solution
-                .coverage
-                .contains(phoneme_index(phone).unwrap())
-        });
-    }
-
     // Prevent further mutation
     let mons_by_phone = mons_by_phone;
 
     // Start finding solutions
-    let mut queue: BinaryHeap<Solution> = BinaryHeap::from_iter([initial_solution]);
+    let mut queue: BinaryHeap<Solution> = BinaryHeap::from_iter([Solution::default()]);
     let mut cache = HashSet::new();
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
