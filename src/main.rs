@@ -98,29 +98,36 @@ fn solve<'a>(
     cache: &mut BTreeSet<u64>,
 ) -> Vec<Solution<'a>> {
     let mut min_names = usize::MAX;
+    let mut shortests = Vec::new();
 
     // Find the shortest list(s)
     for k in 0..MON_PHONEMES.len() {
         if 1 << k & missing_bits != 0 {
             // We are missing this bit
-            min_names = min_names.min(mons_by_phone[k].len());
-            assert!(min_names > 1);
+            let mons = &mons_by_phone[k];
+            let l = mons.len();
+            if l < min_names {
+                shortests.clear();
+                min_names = l;
+                assert!(min_names > 1);
+            }
+
+            if l <= min_names {
+                shortests.push(mons);
+            }
         }
     }
 
     let mut o: Vec<Solution<'_>> = Vec::new();
-    for mons in mons_by_phone {
-        if mons.len() != min_names {
-            // Only consider the shortest lists
-            continue;
-        }
+    for mons in shortests {
+        assert_eq!(mons.len(), min_names);
 
         for mon in mons {
             let coverage = existing_solution.coverage | mon.phonemes_mask;
-            if coverage == existing_solution.coverage {
-                // unchanged coverage, skip it
-                continue;
-            }
+            assert_ne!(
+                coverage, existing_solution.coverage,
+                "for {mon:#x?}, min_names {min_names}"
+            );
 
             let mut mons = existing_solution.mons.clone();
             mons.push(mon);
