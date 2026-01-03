@@ -252,9 +252,6 @@ fn main() -> Result<()> {
     }
     println!("Finding a solution...");
 
-    // Prevent further mutation
-    let mons_by_phone = mons_by_phone;
-
     // Start finding solutions
     let mut queue: BinaryHeap<Solution> = BinaryHeap::from_iter([Solution::default()]);
     let mut cache = HashSet::new();
@@ -267,7 +264,7 @@ fn main() -> Result<()> {
 
     while let Some(step) = queue.pop() {
         if step.mons.len() + 1 >= best_length {
-            // There's no way we could beat this solution.
+            // There's no way we could make an improvement using this solution.
             continue;
         }
 
