@@ -1,8 +1,9 @@
 use crate::pronunciation::{phoneme_index, Pokémon, PronunciationReader, MON_PHONEMES};
 use crate::set::BitSet;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use eyre::{OptionExt, Result};
 use itertools::Itertools;
+use rand::seq::SliceRandom;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BTreeMap, BinaryHeap, HashSet};
 use std::fs::File;
@@ -19,11 +20,59 @@ mod set;
 struct Opts {
     /// Input filename
     input: PathBuf,
-
     /// Emit less debugging output, and a solution summary for the README
     #[clap(long)]
     summary: bool,
+    /// How to preference Pokémon to satisfy a desired phoeneme
+    #[clap(short, long, default_value = "most-unique")]
+    prefer: SelectionPreference,
+    /// Don't prune Pokémon that contain a subset of another's phonemes, increasing memory usage and
+    /// reducing speed
+    #[clap(long)]
+    no_prune: bool,
 }
+
+#[derive(Default, Copy, Clone, ValueEnum)]
+enum SelectionPreference {
+    /// Most unique phonemes (default, greedy selection that quickly finds an optimal solution, but
+    /// may be a tongue twister)
+    #[default]
+    MostUnique,
+    /// Least unique phonemes (procrastinates finding an optimal solution, but prefers simpler
+    /// names)
+    LeastUnique,
+    /// Most phonemes (whichever takes the longest to say, even if it contains repeated phonemes)
+    MostPhonemes,
+    /// Least phonemes (also procrastinates, but prefers shorter names)
+    LeastPhonemes,
+    /// Longest name
+    LongestName,
+    /// Shortest name
+    ShortestName,
+    /// Names in alphabetical order
+    Alphabetical,
+    /// Names in reverse alphabetical order
+    ReverseAlphabetical,
+    /// Random shuffle (diverse results, but generally procrastinates)
+    Random,
+}
+
+impl SelectionPreference {
+    fn sort_mons(self, mons: &mut [Pokémon], rng: &mut impl rand::Rng) {
+        match self {
+            SelectionPreference::MostUnique => mons.sort_by_key(|e| Reverse(e.phonemes_mask.len())),
+            SelectionPreference::LeastUnique => mons.sort_by_key(|e| e.phonemes_mask.len()),
+            SelectionPreference::MostPhonemes => mons.sort_by_key(|e| Reverse(e.ipa.len())),
+            SelectionPreference::LeastPhonemes => mons.sort_by_key(|e| e.ipa.len()),
+            SelectionPreference::LongestName => mons.sort_by_key(|e| Reverse(e.name.len())),
+            SelectionPreference::ShortestName => mons.sort_by_key(|e| e.name.len()),
+            SelectionPreference::Alphabetical => mons.sort_by(|a, b| a.name.cmp(&b.name)),
+            SelectionPreference::ReverseAlphabetical => mons.sort_by(|a, b| b.name.cmp(&a.name)),
+            SelectionPreference::Random => mons.shuffle(rng),
+        }
+    }
+}
+
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Solution<'a> {
@@ -112,6 +161,7 @@ fn solve<'a>(
 
 fn main() -> Result<()> {
     let opts = Opts::parse();
+    let mut rng = rand::rng();
 
     let f = BufReader::new(File::open(opts.input)?);
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
@@ -131,7 +181,9 @@ fn main() -> Result<()> {
         .reduce(BitOr::bitor)
         .ok_or_eyre("no pokemon loaded")?;
 
-    let non_redundant_mons = {
+    let mut mons = if opts.no_prune {
+        original_mons.clone()
+    } else {
         let mut res: Vec<Pokémon> = vec![];
         for mon in &original_mons {
             if res
@@ -144,21 +196,29 @@ fn main() -> Result<()> {
         }
         res
     };
+    opts.prefer.sort_mons(&mut mons, &mut rng);
+    let mons = mons;
 
-    println!(
-        "There are {count} Pokémon that do not use a subset of another's phonemes:",
-        count = non_redundant_mons.len()
-    );
-    for (i, mon) in non_redundant_mons.iter().enumerate() {
-        println!(
-            "  [{i:03}] = {name:20} phonemes: {phonemes}",
-            name = mon.name,
-            phonemes = mon
-                .phonemes_mask
-                .iter()
-                .map(|n| MON_PHONEMES[n])
-                .collect::<String>(),
-        );
+    if !opts.summary {
+        if !opts.no_prune {
+            println!(
+                "There are {count} Pokémon that do not use a subset of another's phonemes:",
+                count = mons.len()
+            );
+        } else {
+            println!("There are {count} total Pokémon:", count = mons.len());
+        }
+        for (i, mon) in mons.iter().enumerate() {
+            println!(
+                "  [{i:03}] = {name:20} phonemes: {phonemes}",
+                name = mon.name,
+                phonemes = mon
+                    .phonemes_mask
+                    .iter()
+                    .map(|n| MON_PHONEMES[n])
+                    .collect::<String>(),
+            );
+        }
     }
 
     // phone -> Vec<&Pokemon> that has it
@@ -167,7 +227,7 @@ fn main() -> Result<()> {
         .map(|&phoneme| {
             (
                 phoneme,
-                non_redundant_mons
+                mons
                     .iter()
                     .filter(|mon| mon.ipa.contains(phoneme))
                     .collect(),
@@ -271,7 +331,7 @@ fn main() -> Result<()> {
             "| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | \
             **{best_length} Pokémon**: {best_solution} |",
             pokemon_count = original_mons.len(),
-            distinct_pokemon_count = non_redundant_mons.len(),
+            distinct_pokemon_count = mons.len(),
             phoneme_count = mons_by_phone.len(),
         );
     }
