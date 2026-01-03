@@ -33,15 +33,16 @@ struct Solution<'a> {
     coverage: BitSet,
 }
 
-impl<'a> PartialOrd for Solution<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
+/// Heap-ordering for solutions, most-complete first
 impl<'a> Ord for Solution<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.ordering_key().cmp(&other.ordering_key())
+    }
+}
+
+impl<'a> PartialOrd for Solution<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -58,7 +59,7 @@ impl Solution<'_> {
     }
 
     pub fn ordering_key(&self) -> impl Ord + use<'_> {
-        (self.coverage.len(), self.coverage, &self.mons)
+        (self.coverage.len(), Reverse(self.mons.len()), self.coverage, &self.mons)
     }
 }
 
