@@ -1,42 +1,75 @@
 //! Load in pronunciation data
 
+use crate::set::BitSet;
+use eyre::{Result, bail};
+use std::io::BufRead;
+use std::rc::Rc;
+
 /// All the phonemes that can appear in a Pokémon's name.
 pub const MON_PHONEMES: [char; 38] = [
     'b', 'd', 'f', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'p', 's', 't', 'u', 'v', 'w', 'z', 'Ø', 'ä',
     'æ', 'ï', 'ð', 'õ', 'ö', 'ŋ', 'ɑ', 'ə', 'ɚ', 'ɛ', 'ɡ', 'ɪ', 'ɹ', 'ʃ', 'ʊ', 'ʒ', 'ʤ', 'ʧ', 'θ',
 ];
 
+pub fn phoneme_index(phoneme: char) -> Option<usize> {
+    MON_PHONEMES.iter().position(|p| *p == phoneme)
+}
+
 /// Reader for pronunciation files
 pub struct PronunciationReader<R> {
-    f: R,
+    lines: std::io::Lines<R>,
 }
 
 /// A Pokémon's pronunciation entry
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Pokémon {
-    /// The name
-    pub name: String,
-    /// Its pronunciation, in IPA
-    pub ipa: String,
     /// The mask of phonemes that appear in this Pokémon's IPA
-    pub phonemes_mask: u64,
+    pub phoneme_set: BitSet,
+    text: Rc<PkmnText>,
+}
+
+impl Pokémon {
+    pub fn name(&self) -> &str {
+        &self.text.name
+    }
+
+    pub fn ipa(&self) -> &str {
+        &self.text.ipa
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PkmnText {
+    /// The name
+    name: String,
+    /// Its pronunciation, in IPA
+    ipa: String,
 }
 
 impl<R> PronunciationReader<R>
 where
-    R: std::io::BufRead,
+    R: BufRead,
 {
     /// Read pronunciation data file
     pub fn new(f: R) -> Self {
-        Self { f }
+        Self { lines: f.lines() }
     }
+}
+
+impl<R> Iterator for PronunciationReader<R>
+where
+    R: BufRead,
+{
+    type Item = Result<Pokémon>;
 
     /// Read the next [Pokemon] in the file.
-    pub fn next(&mut self) -> std::io::Result<Option<Pokémon>> {
-        let mut buf = String::new();
-
-        while self.f.read_line(&mut buf)? != 0 {
-            let line = buf.trim();
+    fn next(&mut self) -> Option<Result<Pokémon>> {
+        for line_read in self.lines.by_ref() {
+            let line = match line_read {
+                Ok(line) => line,
+                Err(e) => return Some(Err(e.into())),
+            };
+            let line = line.trim();
             if line.is_empty() {
                 continue;
             }
@@ -47,47 +80,32 @@ where
                 continue;
             };
 
-            return Ok(Some(Pokémon::new(name, ipa)));
+            return Some(Pokémon::new(name, ipa));
         }
 
         // EOF
-        Ok(None)
-    }
-
-    /// Read all remaining [Pokemon] in the file.
-    pub fn into_vec(mut self) -> std::io::Result<Vec<Pokémon>> {
-        let mut o = Vec::with_capacity(151);
-
-        while let Some(pokemon) = self.next()? {
-            o.push(pokemon);
-        }
-
-        Ok(o)
+        None
     }
 }
 
 impl Pokémon {
-    fn new(name: &str, ipa: &str) -> Self {
+    fn new(name: &str, ipa: &str) -> Result<Self> {
         let name = name.trim();
-        let ipa = clean_pronunciation(ipa);
+        let ipa = clean_pronunciation(ipa)?;
 
-        let mut phonemes_mask = 0;
-        for (pos, &phone) in MON_PHONEMES.iter().enumerate() {
-            if ipa.contains(phone) {
-                phonemes_mask |= 1 << pos;
+        Ok(Pokémon {
+            phoneme_set: ipa.chars().flat_map(phoneme_index).collect(),
+            text: PkmnText {
+                name: name.to_string(),
+                ipa,
             }
-        }
-
-        Pokémon {
-            name: name.to_string(),
-            ipa,
-            phonemes_mask,
-        }
+            .into(),
+        })
     }
 }
 
 /// Clean up pronunciations
-pub fn clean_pronunciation(mut i: &str) -> String {
+pub fn clean_pronunciation(mut i: &str) -> Result<String> {
     // Trim whitespace characters
     i = i.trim_matches(|c: char| c == '/' || c.is_ascii_whitespace());
 
@@ -127,12 +145,11 @@ pub fn clean_pronunciation(mut i: &str) -> String {
     o = o.replace(|p| non_phoeneme.contains(p), "");
 
     // If we hit an error here, then this function or MON_PHONEMES needs updating.
-    assert!(
-        o.chars().all(|c| MON_PHONEMES.contains(&c)),
-        "unexpected character after cleaning {o:?}: {i:?}",
-    );
+    if !o.chars().all(|c| phoneme_index(c).is_some()) {
+        bail!("unexpected character after cleaning {o:?}: {i:?}");
+    }
 
-    o
+    Ok(o)
 }
 
 #[cfg(test)]
@@ -141,8 +158,14 @@ mod test {
 
     #[test]
     fn cleanup() {
-        assert_eq!("nidöɹæn", clean_pronunciation("/ˈniːdoʊɹæn (ˈfiːmeɪl)/"));
-        assert_eq!("ʤɪɡlipəf", clean_pronunciation("/ˈdʒɪɡliːpʌf/"));
-        assert_eq!("hïdɹïɡən", clean_pronunciation("/\u{329}haɪˈdraɪɡən/"))
+        assert_eq!(
+            "nidöɹæn",
+            clean_pronunciation("/ˈniːdoʊɹæn (ˈfiːmeɪl)/").unwrap()
+        );
+        assert_eq!("ʤɪɡlipəf", clean_pronunciation("/ˈdʒɪɡliːpʌf/").unwrap());
+        assert_eq!(
+            "hïdɹïɡən",
+            clean_pronunciation("/\u{329}haɪˈdraɪɡən/").unwrap()
+        );
     }
 }

@@ -1,8 +1,8 @@
 [package]
 name = "mon-pangrams"
 version = "0.1.0"
-authors = ["Michael Farrell <micolous+git@gmail.com>"]
-edition = "2021"
+authors = ["Michael Farrell <micolous+git@gmail.com>", "kent ross <k@mad.cash>"]
+edition = "2024"
 repository = "https://github.com/micolous/mon-pangrams"
 license = "MIT OR Apache-2.0"
 rust-version = "1.88"
@@ -13,8 +13,13 @@ memory-stats = []
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
+eyre = "0.6.12"
+itertools = "0.14.0"
 rand = "0.9.2"
 
 [profile.profiling]
 inherits = "release"
 debug = true
+
+[profile.release]
+lto = "fat"
