@@ -7,13 +7,7 @@ use crate::memory::get_memory_stats;
 use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
 use clap::{Parser, ValueEnum};
 use rand::seq::SliceRandom;
-use std::{
-    cmp::Reverse,
-    collections::{BTreeMap, BTreeSet},
-    fs::File,
-    io::BufReader,
-    path::PathBuf,
-};
+use std::{cmp::Reverse, collections::BTreeSet, fs::File, io::BufReader, path::PathBuf};
 
 #[derive(Parser)]
 #[command(disable_help_flag = true)]
@@ -97,7 +91,8 @@ impl Solution<'_> {
 }
 
 fn solve<'a>(
-    mons_by_phone: &BTreeMap<u8, &Vec<&'a Pokémon>>,
+    missing_bits: u64,
+    mons_by_phone: &[Vec<&'a Pokémon>; MON_PHONEMES.len()],
     existing_solution: &Solution<'a>,
     max_coverage: u64,
     cache: &mut BTreeSet<u64>,
@@ -105,18 +100,22 @@ fn solve<'a>(
     let mut min_names = usize::MAX;
 
     // Find the shortest list(s)
-    for mons in mons_by_phone.values() {
-        min_names = min_names.min(mons.len());
-        assert!(min_names > 1);
+    for k in 0..MON_PHONEMES.len() {
+        if 1 << k & missing_bits != 0 {
+            // We are missing this bit
+            min_names = min_names.min(mons_by_phone[k].len());
+            assert!(min_names > 1);
+        }
     }
+
     let mut o: Vec<Solution<'_>> = Vec::new();
-    for mons in mons_by_phone.values() {
+    for mons in mons_by_phone {
         if mons.len() != min_names {
             // Only consider the shortest lists
             continue;
         }
 
-        for mon in *mons {
+        for mon in mons {
             let coverage = existing_solution.coverage | mon.phonemes_mask;
             if coverage == existing_solution.coverage {
                 // unchanged coverage, skip it
@@ -154,6 +153,8 @@ fn main() {
     let f = BufReader::new(File::open(opts.input).unwrap());
     let reader = PronunciationReader::new(f);
     let mut mons = reader.into_vec().unwrap();
+    assert!(!mons.is_empty());
+
     let pokemon_count = mons.len();
     println!("Read {pokemon_count} Pokémon");
 
@@ -166,7 +167,7 @@ fn main() {
         // appear earlier in the list (and we get a stable sort).
         mons.sort_by_key(|e| Reverse((e.phonemes_mask.count_ones(), e.phonemes_mask)));
 
-        // Working from the end of the list (= less bits), remove entries that are subsets of an earlier
+        // Working from the end of the list (= less ones), remove entries that are subsets of an earlier
         // entry.
         let mut i = mons.len() - 1;
         while i > 0 {
@@ -235,20 +236,23 @@ fn main() {
         }
     }
     // phone bit -> Vec<&Pokemon> that has it
-    let mut mons_by_phone: BTreeMap<u8, Vec<&Pokémon>> = BTreeMap::new();
+    let mut mons_by_phone: [Vec<&Pokémon>; MON_PHONEMES.len()] =
+        [const { vec![] }; MON_PHONEMES.len()];
+    // let mut mons_by_phone: BTreeMap<u8, Vec<&Pokémon>> = BTreeMap::new();
     for mon in mons.iter() {
-        for b in 0..(MON_PHONEMES.len() as u8) {
+        for b in 0..mons_by_phone.len() {
             if mon.phonemes_mask & (1 << b) != 0 {
-                if let Some(e) = mons_by_phone.get_mut(&b) {
-                    e.push(mon);
-                } else {
-                    mons_by_phone.insert(b, vec![mon]);
-                }
+                mons_by_phone[b].push(mon);
+                // if let Some(e) = mons_by_phone.get_mut(&b) {
+                //     e.push(mon);
+                // } else {
+                //     mons_by_phone.insert(b, vec![mon]);
+                // }
             }
         }
     }
 
-    let phoneme_count = mons_by_phone.len();
+    let phoneme_count = max_coverage.count_ones();
     if !opts.quiet {
         println!();
     }
@@ -260,11 +264,12 @@ fn main() {
         println!();
     } else {
         println!(":");
-        for (&k, v) in &mons_by_phone {
+        for (k, v) in mons_by_phone.iter().enumerate() {
+            if v.is_empty() {
+                continue;
+            }
             let phone = MON_PHONEMES[k as usize];
-            let count = v.len() as u16;
-            println!("  {phone}: {count:3} Pokémon");
-
+            println!("  {phone}: {:3} Pokémon", v.len());
             // frequency.push((count, k));
         }
     }
@@ -291,31 +296,31 @@ fn main() {
         coverage: 0,
     };
 
-    mons_by_phone.retain(|_phoneme_id, mons| {
-        assert!(!mons.is_empty());
+    for mons in mons_by_phone.iter_mut() {
         if mons.len() != 1 {
-            return true;
+            continue;
         }
 
         let mon = mons.remove(0);
 
         let coverage = initial_solution.coverage | mon.phonemes_mask;
-        if coverage == initial_solution.coverage {
-            // We already have a mon that handles this, so we can just drop this.
-            return false;
-        }
+
+        // We shouldn't fully overlap here
+        assert_ne!(coverage, initial_solution.coverage);
 
         initial_solution.coverage = coverage;
         initial_solution.mons.push(mon);
-
-        false
-    });
+    }
 
     // We have some initial solution
     if initial_solution.coverage != 0 {
         assert!(!initial_solution.mons.is_empty());
-        // Keep phonemes that are not represented by our unique-phoneme Pokemon.
-        mons_by_phone.retain(|&k, _| (1 << k) & initial_solution.coverage == 0);
+        // Remove phonemes that are represented in our unique-phoneme Pokemon.
+        for k in 0..MON_PHONEMES.len() {
+            if (1 << k) & initial_solution.coverage != 0 {
+                mons_by_phone[k] = Vec::with_capacity(0);
+            }
+        }
     } else {
         assert!(initial_solution.mons.is_empty());
     }
@@ -324,6 +329,25 @@ fn main() {
     let mons_by_phone = mons_by_phone;
 
     // Start finding solutions
+    let mut missing_bits = max_coverage ^ initial_solution.coverage;
+    let mut best_solution = String::new();
+
+    if missing_bits == 0 {
+        let best_length = initial_solution.mons.len();
+        let mut first = true;
+        for mon in initial_solution.mons {
+            if first {
+                first = false;
+            } else {
+                best_solution.push_str(", ");
+            }
+            best_solution.push_str(&mon.name);
+        }
+
+        println!("Initial solution is complete ({best_length} Pokémon): {best_solution}");
+        return;
+    }
+
     let mut stack: Vec<Solution<'_>> = vec![initial_solution];
     let mut cache = BTreeSet::new();
     // let mut best_bits = 0;
@@ -331,7 +355,7 @@ fn main() {
     let mut solution_count = 0;
     let mut peak_stack_len = stack.len();
     let mut peak_candidate_len = 0;
-    let mut best_solution = String::new();
+    let mut solve_calls = 0usize;
 
     while let Some(step) = stack.pop() {
         if step.mons.len() + 1 >= best_length {
@@ -339,19 +363,17 @@ fn main() {
             continue;
         }
 
-        // Include only the subset of mons_by_phone that we haven't already covered
-        let lookup: BTreeMap<u8, &Vec<&Pokémon>> = mons_by_phone
-            .iter()
-            .filter_map(|(&k, v)| {
-                if step.coverage & (1 << k) == 0 {
-                    Some((k, v))
-                } else {
-                    None
-                }
-            })
-            .collect();
+        missing_bits = max_coverage ^ step.coverage;
+        assert_ne!(0, missing_bits);
 
-        let list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
+        let list_of_solutions = solve(
+            missing_bits,
+            &mons_by_phone,
+            &step,
+            max_coverage,
+            &mut cache,
+        );
+        solve_calls += 1;
         // println!("solver gave {} solutions", list_of_solutions.len());
         peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
 
@@ -390,15 +412,17 @@ fn main() {
     }
 
     println!();
-    println!("Done, tried {solution_count} candidates, {peak_stack_len} peak queue length, {peak_candidate_len} peak solver length, {} cache entries", cache.len());
+    println!("Done: {solve_calls} solver calls, {peak_candidate_len} largest solve result, {solution_count} processed candidates, {peak_stack_len} peak queue length, {} cache entries", cache.len());
 
     if opts.summary {
+        println!();
         println!("| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | **{best_length} Pokémon**: {best_solution} |");
     }
 
     #[cfg(feature = "memory-stats")]
     {
         let (now, peak) = get_memory_stats();
+        println!();
         println!("Memory usage after running solver: {now} now, {peak} peak");
     }
 }
