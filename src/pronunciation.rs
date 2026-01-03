@@ -3,6 +3,7 @@
 use crate::set::BitSet;
 use eyre::{Result, bail};
 use std::io::BufRead;
+use std::rc::Rc;
 
 /// All the phonemes that can appear in a Pokémon's name.
 pub const MON_PHONEMES: [char; 38] = [
@@ -24,7 +25,7 @@ pub struct PronunciationReader<R> {
 pub struct Pokémon {
     /// The mask of phonemes that appear in this Pokémon's IPA
     pub phoneme_set: BitSet,
-    text: Box<PkmnText>,
+    text: Rc<PkmnText>,
 }
 
 impl Pokémon {

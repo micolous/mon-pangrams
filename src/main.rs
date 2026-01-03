@@ -1,6 +1,6 @@
 #![allow(unstable_name_collisions)]
 
-use crate::pronunciation::{phoneme_index, Pokémon, PronunciationReader, MON_PHONEMES};
+use crate::pronunciation::{MON_PHONEMES, Pokémon, PronunciationReader, phoneme_index};
 use crate::set::BitSet;
 use clap::{Parser, ValueEnum};
 use eyre::{OptionExt, Result};
@@ -29,9 +29,6 @@ struct Opts {
     /// How to preference Pokémon to satisfy a desired phoeneme
     #[clap(short, long, default_value = "most-unique")]
     prefer: SelectionPreference,
-    /// Proactively prune Pokémon that contain a subset of another's phonemes
-    #[clap(long)]
-    prune: bool,
 }
 
 #[derive(Default, Copy, Clone, ValueEnum)]
@@ -69,7 +66,9 @@ impl SelectionPreference {
             SelectionPreference::LongestName => mons.sort_by_key(|e| Reverse(e.name().len())),
             SelectionPreference::ShortestName => mons.sort_by_key(|e| e.name().len()),
             SelectionPreference::Alphabetical => mons.sort_by(|a, b| a.name().cmp(&b.name())),
-            SelectionPreference::ReverseAlphabetical => mons.sort_by(|a, b| b.name().cmp(&a.name())),
+            SelectionPreference::ReverseAlphabetical => {
+                mons.sort_by(|a, b| b.name().cmp(&a.name()))
+            }
             SelectionPreference::Random => mons.shuffle(rng),
         }
     }
@@ -83,7 +82,7 @@ fn solve(
     already_covered: BitSet,
     mon_list: Option<MonList>,
     call_depth: usize,
-    phone_sets: &[(usize, &[&Pokémon])],
+    phone_sets: &[(usize, &[Pokémon])],
     solution_state: &mut SolutionState,
 ) {
     solution_state.solve_calls += 1;
@@ -96,7 +95,7 @@ fn solve(
         panic!("found no phoneme list to recurse down");
     };
 
-    for &mon in mons_to_iterate {
+    for mon in mons_to_iterate {
         let new_coverage = already_covered | mon.phoneme_set;
         let new_mon_list = MonList {
             prev: mon_list.as_ref(),
@@ -173,49 +172,22 @@ fn main() -> Result<()> {
     let f = BufReader::new(File::open(opts.input)?);
     // Sort by number of bits in the mask then the mask itself, so that higher-coverage entries
     // appear earlier in the list (and we get a stable sort).
-    let original_mons: Vec<Pokémon> = PronunciationReader::new(f)
-        .sorted_by_key(|e| {
-            let mask = e.as_ref().ok()?.phoneme_set;
-            Some(Reverse((mask.len(), mask)))
-        })
+    let mut mons: Vec<Pokémon> = PronunciationReader::new(f)
         .collect::<Result<_>>()?;
-    println!("Read {count} Pokémon", count = original_mons.len());
+    println!("Read {count} Pokémon", count = mons.len());
 
     // max_coverage is the set of every covered phoneme
-    let max_coverage = original_mons
+    let max_coverage = mons
         .iter()
         .map(|mon| mon.phoneme_set)
         .reduce(BitOr::bitor)
         .ok_or_eyre("no pokemon loaded")?;
 
-    let mut mons = if opts.prune {
-        // TODO: should this happen later, after sorting?
-        let mut res: Vec<Pokémon> = vec![];
-        for mon in &original_mons {
-            if res
-                .iter()
-                .any(|preceding_mon| mon.phoneme_set.is_subset_of(preceding_mon.phoneme_set))
-            {
-                continue; // exclude all pokemon that are covered by another's pronunciation
-            }
-            res.push(mon.clone());
-        }
-        res
-    } else {
-        original_mons.clone()
-    };
     opts.prefer.sort_mons(&mut mons, &mut rng);
     let mons = mons;
 
     if !opts.summary {
-        if opts.prune {
-            println!(
-                "There are {count} Pokémon that do not use a subset of another's phonemes:",
-                count = mons.len()
-            );
-        } else {
-            println!("There are {count} total Pokémon:", count = mons.len());
-        }
+        println!("There are {count} total Pokémon:", count = mons.len());
         for (i, mon) in mons.iter().enumerate() {
             println!(
                 "  [{i:03}] = {name:20} phonemes: {phonemes}",
@@ -229,20 +201,22 @@ fn main() -> Result<()> {
         }
     }
 
-    // phone -> Vec<&Pokemon> that has it
-    let mons_by_phone: BTreeMap<char, Vec<&Pokémon>> = MON_PHONEMES
+    // phone -> Vec<Pokemon> that has it
+    let mons_by_phone: BTreeMap<char, Vec<Pokémon>> = MON_PHONEMES
         .iter()
         .map(|&phoneme| {
             (
                 phoneme,
                 mons.iter()
                     .filter(|mon| mon.ipa().contains(phoneme))
+                    .cloned()
                     .collect(),
             )
         })
         .collect();
 
-    let phone_sets: Vec<(usize, &[&Pokémon])> = mons_by_phone
+    // Vec of (phoneme index, slice of corresponding mons) smallest to largest subgroup
+    let phone_sets: Vec<(usize, &[Pokémon])> = mons_by_phone
         .iter()
         .map(|(phone, mons)| {
             (
@@ -292,10 +266,8 @@ fn main() -> Result<()> {
 
     if opts.summary {
         println!(
-            "{pokemon_count} total Pokémon; {distinct_pokemon_count} with non-redundant phonemes; \
-            {phoneme_count} total phonemes; {solution}",
-            pokemon_count = original_mons.len(),
-            distinct_pokemon_count = mons.len(),
+            "{pokemon_count} total Pokémon; {phoneme_count} total phonemes; {solution}",
+            pokemon_count = mons.len(),
             phoneme_count = mons_by_phone.len(),
             solution = match solution_state.best_length {
                 SolutionLength::Solved(best) => format!("solved in {best}"),
