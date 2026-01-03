@@ -14,6 +14,7 @@ memory-stats = []
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
 rand = "0.9.2"
+rustc-hash = "2.1.1"
 
 [profile.profiling]
 inherits = "release"

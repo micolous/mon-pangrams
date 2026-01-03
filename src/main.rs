@@ -7,7 +7,8 @@ use crate::memory::get_memory_stats;
 use crate::pronunciation::{Pokémon, PronunciationReader, MON_PHONEMES};
 use clap::{Parser, ValueEnum};
 use rand::seq::SliceRandom;
-use std::{cmp::Reverse, collections::BTreeSet, fs::File, io::BufReader, path::PathBuf};
+use rustc_hash::FxHashSet;
+use std::{cmp::Reverse, fs::File, io::BufReader, path::PathBuf};
 
 #[derive(Parser)]
 #[command(disable_help_flag = true)]
@@ -95,7 +96,7 @@ fn solve<'a>(
     mons_by_phone: &[Vec<&'a Pokémon>; MON_PHONEMES.len()],
     existing_solution: &Solution<'a>,
     max_coverage: u64,
-    cache: &mut BTreeSet<u64>,
+    cache: &mut FxHashSet<u64>,
 ) -> Vec<Solution<'a>> {
     let mut min_names = usize::MAX;
     let mut shortests = Vec::new();
@@ -356,7 +357,7 @@ fn main() {
     }
 
     let mut stack: Vec<Solution<'_>> = vec![initial_solution];
-    let mut cache = BTreeSet::new();
+    let mut cache = FxHashSet::default();
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
     let mut solution_count = 0;
