@@ -341,7 +341,7 @@ fn main() {
             })
             .collect();
 
-        let mut list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
+        let list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
         // println!("solver gave {} solutions", list_of_solutions.len());
         peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
 
