@@ -329,7 +329,7 @@ fn main() -> Result<()> {
             phoneme_count = mons_by_phone.len(),
             solution = match solution_state.best_length {
                 SolutionLength::Solved(best) =>
-                    format!("**{best} Pokémon: {}", solution_state.best_solution),
+                    format!("**{best}** Pokémon: {}", solution_state.best_solution),
                 SolutionLength::Unsolved => "unsolved??".to_owned(),
             }
         );
