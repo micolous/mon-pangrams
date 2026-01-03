@@ -1,5 +1,3 @@
-#[cfg(feature = "memory-stats")]
-use crate::memory::get_memory_stats;
 use crate::pronunciation::{phoneme_index, Pokémon, PronunciationReader, MON_PHONEMES};
 use crate::set::BitSet;
 use clap::Parser;
@@ -184,7 +182,7 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "memory-stats")]
     {
-        let (now, peak) = get_memory_stats();
+        let (now, peak) = memory::get_memory_stats();
         println!();
         println!("Memory usage before running solver: {now} now, {peak} peak");
     }
@@ -280,7 +278,7 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "memory-stats")]
     {
-        let (now, peak) = get_memory_stats();
+        let (now, peak) = memory::get_memory_stats();
         println!("Memory usage after running solver: {now} now, {peak} peak");
     }
 
