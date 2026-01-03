@@ -85,7 +85,7 @@ impl Solution<'_> {
     ///
     /// This introduces collisions to reduce our search space: what matters is the coverage we
     /// acquired for the number of Pokémon in the list.
-    pub fn cache_key(&self) -> u64 {
+    pub const fn cache_key(&self) -> u64 {
         self.coverage | ((self.mons.len() as u64) << MON_PHONEMES.len())
     }
 }
