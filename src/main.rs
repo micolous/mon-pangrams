@@ -27,7 +27,11 @@ struct Opts {
     #[clap()]
     input: PathBuf,
 
-    /// Emit less debugging output, and a solution summary for the README
+    /// Emit less debugging output
+    #[clap(long)]
+    quiet: bool,
+
+    /// Emit a solution summary for the README
     #[clap(long)]
     summary: bool,
 
@@ -214,20 +218,22 @@ fn main() {
     }
 
     let distinct_pokemon_count = mons.len();
-    if !opts.summary {
-        if !opts.no_prune {
-            println!("There are {distinct_pokemon_count} Pokémon that do not use a subset of another's phonemes:");
-        }
-        for (i, mon) in mons.iter().enumerate() {
-            println!(
-                "  [{i:03}] = {:20} mask: {:#12x}, bits: {:2}",
-                mon.name,
-                mon.phonemes_mask,
-                mon.phonemes_mask.count_ones(),
-            );
+    if !opts.no_prune {
+        print!("There are {distinct_pokemon_count} Pokémon that do not use a subset of another's phonemes");
+        if opts.quiet {
+            println!();
+        } else {
+            println!(":");
+            for (i, mon) in mons.iter().enumerate() {
+                println!(
+                    "  [{i:03}] = {:20} mask: {:#12x}, bits: {:2}",
+                    mon.name,
+                    mon.phonemes_mask,
+                    mon.phonemes_mask.count_ones(),
+                );
+            }
         }
     }
-
     // phone bit -> Vec<&Pokemon> that has it
     let mut mons_by_phone: BTreeMap<u8, Vec<&Pokémon>> = BTreeMap::new();
     for mon in mons.iter() {
@@ -243,13 +249,17 @@ fn main() {
     }
 
     let phoneme_count = mons_by_phone.len();
-    if !opts.summary {
+    if !opts.quiet {
         println!();
-        println!("{phoneme_count} phonemes represented:");
     }
+    print!("{phoneme_count} phonemes represented");
+
     // frequency -> phone ID
     // let mut frequency: Vec<(u16, u8)> = Vec::with_capacity(MON_PHONEMES.len());
-    if !opts.summary {
+    if opts.quiet {
+        println!();
+    } else {
+        println!(":");
         for (&k, v) in &mons_by_phone {
             let phone = MON_PHONEMES[k as usize];
             let count = v.len() as u16;
@@ -270,7 +280,7 @@ fn main() {
         println!("Memory usage before running solver: {now} now, {peak} peak");
     }
 
-    if !opts.summary {
+    if !opts.quiet {
         println!();
     }
     println!("Finding a solution...");
