@@ -16,7 +16,13 @@ use std::{
 };
 
 #[derive(Parser)]
+#[command(disable_help_flag = true)]
 struct Opts {
+    /// Print help
+    // Forces using long help.
+    #[clap(short, long, action = clap::ArgAction::HelpLong)]
+    help: Option<bool>,
+
     /// Input filename
     #[clap()]
     input: PathBuf,
@@ -25,29 +31,30 @@ struct Opts {
     #[clap(long)]
     summary: bool,
 
-    /// How to preference Pokémon to satisfy a desired phoeneme
+    /// Which Pokémon to preference when more than one would provide the same missing phonemes.
     #[clap(short, long, default_value = "most-unique")]
     prefer: SelectionPreference,
 
-    /// Don't prune Pokémon that contain a subset of another's phonemes, increasing memory usage and
-    /// reducing speed
+    /// Don't prune Pokémon that contain a subset of another's phonemes. This will significantly
+    /// reduce performance and increase memory usage.
     #[clap(long)]
     no_prune: bool,
 }
 
 #[derive(Default, Clone, ValueEnum)]
 enum SelectionPreference {
-    /// Most unique phonemes (default, greedy selection that quickly finds an optimal solution, but may be a tongue twister)
+    /// Most unique phonemes (default, greedy selection that generally finds a solution quickly, but
+    /// may be a tongue twister)
     #[default]
     MostUnique,
 
-    /// Least unique phonemes (procrastinates finding an optimal solution, but prefers simpler names)
+    /// Least unique phonemes (prefers simpler names)
     LeastUnique,
 
     /// Most phonemes (whichever takes the longest to say, even if it contains repeated phonemes)
     MostPhonemes,
 
-    /// Least phonemes (also procrastinates, but prefers shorter names)
+    /// Least phonemes (whichever is shorter to say)
     LeastPhonemes,
 
     /// Longest name
@@ -56,13 +63,13 @@ enum SelectionPreference {
     /// Shortest name
     ShortestName,
 
-    /// Names in alphabetical order
+    /// Prefers names that are earlier in the alphabet
     Alphabetical,
 
-    /// Names in reverse alphabetical order
+    /// Prefers names that are later in the alphabet
     ReverseAlphabetical,
 
-    /// Random shuffle (diverse results, but generally procrastinates)
+    /// Random shuffle (diverse results)
     Random,
 }
 
@@ -98,8 +105,7 @@ fn solve<'a>(
         min_names = min_names.min(mons.len());
         assert!(min_names > 1);
     }
-
-    let mut o = Vec::new();
+    let mut o: Vec<Solution<'_>> = Vec::new();
     for mons in mons_by_phone.values() {
         if mons.len() != min_names {
             // Only consider the shortest lists
@@ -128,7 +134,9 @@ fn solve<'a>(
             }
 
             // More work to do.
-            o.push(solution);
+            let idx =
+                o.partition_point(|x| solution.coverage.count_ones() <= x.coverage.count_ones());
+            o.insert(idx, solution);
         }
     }
 
@@ -306,16 +314,16 @@ fn main() {
     let mons_by_phone = mons_by_phone;
 
     // Start finding solutions
-    let mut queue: Vec<Solution<'_>> = vec![initial_solution];
+    let mut stack: Vec<Solution<'_>> = vec![initial_solution];
     let mut cache = BTreeSet::new();
     // let mut best_bits = 0;
     let mut best_length = mons_by_phone.len();
     let mut solution_count = 0;
-    let mut peak_queue_len = queue.len();
+    let mut peak_stack_len = stack.len();
     let mut peak_candidate_len = 0;
     let mut best_solution = String::new();
 
-    while let Some(step) = queue.pop() {
+    while let Some(step) = stack.pop() {
         if step.mons.len() + 1 >= best_length {
             // There's no way we could beat this solution.
             continue;
@@ -336,7 +344,6 @@ fn main() {
         let mut list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
         // println!("solver gave {} solutions", list_of_solutions.len());
         peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
-        list_of_solutions.sort_by_key(|s| Reverse(s.coverage.count_ones()));
 
         for solution in list_of_solutions {
             solution_count += 1;
@@ -361,20 +368,19 @@ fn main() {
             }
 
             if solution.mons.len() <= best_length {
-                let idx = queue
+                // We don't have a full solution, but it's a potentially-better next step.
+                // Put the most-complete solutions at the end, so we try that next.
+                let idx = stack
                     .partition_point(|s| s.coverage.count_ones() <= solution.coverage.count_ones());
-                // println!("potential solution: [{idx}] {solution:?}");
-                // best_bits = best_bits.max(solution.coverage.count_ones());
-                queue.insert(idx, solution);
+                stack.insert(idx, solution);
             }
         }
 
-        // println!("{} queued solutions, {best_length} is best", queue.len());
-        peak_queue_len = peak_queue_len.max(queue.len());
+        peak_stack_len = peak_stack_len.max(stack.len());
     }
 
     println!();
-    println!("Done, tried {solution_count} candidates, {peak_queue_len} peak queue length, {peak_candidate_len} peak solver length, {} cache entries", cache.len());
+    println!("Done, tried {solution_count} candidates, {peak_stack_len} peak queue length, {peak_candidate_len} peak solver length, {} cache entries", cache.len());
 
     if opts.summary {
         println!("| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | **{best_length} Pokémon**: {best_solution} |");
