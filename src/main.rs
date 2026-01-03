@@ -14,7 +14,7 @@ use std::path::PathBuf;
 #[cfg(feature = "memory-stats")]
 mod memory;
 mod pronunciation;
-mod set;
+pub mod set;
 
 #[derive(Parser)]
 struct Opts {
