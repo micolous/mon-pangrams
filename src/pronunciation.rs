@@ -1,7 +1,7 @@
 //! Load in pronunciation data
 
 use crate::set::BitSet;
-use eyre::{bail, Result};
+use eyre::{Result, bail};
 use std::io::BufRead;
 
 /// All the phonemes that can appear in a Pokémon's name.
@@ -20,14 +20,29 @@ pub struct PronunciationReader<R> {
 }
 
 /// A Pokémon's pronunciation entry
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct Pokémon {
-    /// The name
-    pub name: String,
-    /// Its pronunciation, in IPA
-    pub ipa: String,
     /// The mask of phonemes that appear in this Pokémon's IPA
-    pub phonemes_mask: BitSet,
+    pub phoneme_set: BitSet,
+    text: Box<PkmnText>,
+}
+
+impl Pokémon {
+    pub fn name(&self) -> &str {
+        &self.text.name
+    }
+
+    pub fn ipa(&self) -> &str {
+        &self.text.ipa
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PkmnText {
+    /// The name
+    name: String,
+    /// Its pronunciation, in IPA
+    ipa: String,
 }
 
 impl<R> PronunciationReader<R>
@@ -36,9 +51,7 @@ where
 {
     /// Read pronunciation data file
     pub fn new(f: R) -> Self {
-        Self {
-            lines: f.lines(),
-        }
+        Self { lines: f.lines() }
     }
 }
 
@@ -80,9 +93,12 @@ impl Pokémon {
         let ipa = clean_pronunciation(ipa)?;
 
         Ok(Pokémon {
-            name: name.to_string(),
-            phonemes_mask: ipa.chars().flat_map(phoneme_index).collect(),
-            ipa,
+            phoneme_set: ipa.chars().flat_map(phoneme_index).collect(),
+            text: PkmnText {
+                name: name.to_string(),
+                ipa,
+            }
+            .into(),
         })
     }
 }

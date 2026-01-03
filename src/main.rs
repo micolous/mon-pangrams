@@ -1,11 +1,14 @@
+#![allow(unstable_name_collisions)]
+
 use crate::pronunciation::{phoneme_index, Pokémon, PronunciationReader, MON_PHONEMES};
 use crate::set::BitSet;
 use clap::{Parser, ValueEnum};
 use eyre::{OptionExt, Result};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
-use std::cmp::{Ordering, Reverse};
-use std::collections::{BTreeMap, BinaryHeap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, HashSet};
+use std::fmt::Display;
 use std::fs::File;
 use std::io::BufReader;
 use std::ops::BitOr;
@@ -26,10 +29,9 @@ struct Opts {
     /// How to preference Pokémon to satisfy a desired phoeneme
     #[clap(short, long, default_value = "most-unique")]
     prefer: SelectionPreference,
-    /// Don't prune Pokémon that contain a subset of another's phonemes, increasing memory usage and
-    /// reducing speed
+    /// Proactively prune Pokémon that contain a subset of another's phonemes
     #[clap(long)]
-    no_prune: bool,
+    prune: bool,
 }
 
 #[derive(Default, Copy, Clone, ValueEnum)]
@@ -60,103 +62,108 @@ enum SelectionPreference {
 impl SelectionPreference {
     fn sort_mons(self, mons: &mut [Pokémon], rng: &mut impl rand::Rng) {
         match self {
-            SelectionPreference::MostUnique => mons.sort_by_key(|e| Reverse(e.phonemes_mask.len())),
-            SelectionPreference::LeastUnique => mons.sort_by_key(|e| e.phonemes_mask.len()),
-            SelectionPreference::MostPhonemes => mons.sort_by_key(|e| Reverse(e.ipa.len())),
-            SelectionPreference::LeastPhonemes => mons.sort_by_key(|e| e.ipa.len()),
-            SelectionPreference::LongestName => mons.sort_by_key(|e| Reverse(e.name.len())),
-            SelectionPreference::ShortestName => mons.sort_by_key(|e| e.name.len()),
-            SelectionPreference::Alphabetical => mons.sort_by(|a, b| a.name.cmp(&b.name)),
-            SelectionPreference::ReverseAlphabetical => mons.sort_by(|a, b| b.name.cmp(&a.name)),
+            SelectionPreference::MostUnique => mons.sort_by_key(|e| Reverse(e.phoneme_set.len())),
+            SelectionPreference::LeastUnique => mons.sort_by_key(|e| e.phoneme_set.len()),
+            SelectionPreference::MostPhonemes => mons.sort_by_key(|e| Reverse(e.ipa().len())),
+            SelectionPreference::LeastPhonemes => mons.sort_by_key(|e| e.ipa().len()),
+            SelectionPreference::LongestName => mons.sort_by_key(|e| Reverse(e.name().len())),
+            SelectionPreference::ShortestName => mons.sort_by_key(|e| e.name().len()),
+            SelectionPreference::Alphabetical => mons.sort_by(|a, b| a.name().cmp(&b.name())),
+            SelectionPreference::ReverseAlphabetical => mons.sort_by(|a, b| b.name().cmp(&a.name())),
             SelectionPreference::Random => mons.shuffle(rng),
         }
     }
 }
 
-
-#[derive(Debug, Default, PartialEq, Eq)]
-struct Solution<'a> {
-    mons: Vec<&'a Pokémon>,
-    coverage: BitSet,
+fn cache_key(coverage: BitSet, iteration: usize) -> u64 {
+    coverage.into_inner() | ((iteration as u64) << MON_PHONEMES.len())
 }
 
-/// Heap-ordering for solutions, most-complete first
-impl<'a> Ord for Solution<'a> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.ordering_key().cmp(&other.ordering_key())
-    }
-}
+fn solve(
+    already_covered: BitSet,
+    mon_list: Option<MonList>,
+    call_depth: usize,
+    phone_sets: &[(usize, &[&Pokémon])],
+    solution_state: &mut SolutionState,
+) {
+    solution_state.solve_calls += 1;
+    // Find the next least frequent phoneme that is not already covered
+    let Some((iterating_index, &(_, mons_to_iterate))) = phone_sets
+        .iter()
+        .enumerate()
+        .find(|&(_, &(phone_index, _))| !already_covered.contains(phone_index))
+    else {
+        panic!("found no phoneme list to recurse down");
+    };
 
-impl<'a> PartialOrd for Solution<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Solution<'_> {
-    /// Cache key for visited sets of Pokémon.
-    ///
-    /// Rather than keep a list of exactly which Pokémon we visited (and keep it sorted to deal with
-    /// equivalent paths), this just uses the `coverage` and `mons.len()`.
-    ///
-    /// This introduces collisions to reduce our search space: what matters is the coverage we
-    /// acquired for the number of Pokémon in the list.
-    pub fn cache_key(&self) -> u64 {
-        self.coverage.into_inner() | ((self.mons.len() as u64) << MON_PHONEMES.len())
-    }
-
-    pub fn ordering_key(&self) -> impl Ord + use<'_> {
-        (self.coverage.len(), Reverse(self.mons.len()), self.coverage, &self.mons)
-    }
-}
-
-fn solve<'a>(
-    mons_by_phone: &BTreeMap<char, &Vec<&'a Pokémon>>,
-    existing_solution: &Solution<'a>,
-    max_coverage: BitSet,
-    cache: &mut HashSet<u64>,
-) -> Vec<Solution<'a>> {
-    let mut min_names = usize::MAX;
-
-    // Find the shortest list(s)
-    for mons in mons_by_phone.values() {
-        min_names = min_names.min(mons.len());
-    }
-
-    let mut o = Vec::new();
-    for mons in mons_by_phone.values() {
-        if mons.len() != min_names {
-            // Only consider the shortest lists
-            continue;
+    for &mon in mons_to_iterate {
+        let new_coverage = already_covered | mon.phoneme_set;
+        let new_mon_list = MonList {
+            prev: mon_list.as_ref(),
+            pkmn: mon,
+        };
+        if new_coverage == solution_state.solve_target {
+            println!("Found solution with {call_depth} Pokémon: {new_mon_list}",);
+            assert!(solution_state.best_length > SolutionLength::Solved(call_depth));
+            solution_state.best_length = SolutionLength::Solved(call_depth);
+            return;
         }
-
-        for mon in *mons {
-            let coverage = existing_solution.coverage | mon.phonemes_mask;
-            if coverage == existing_solution.coverage {
-                // unchanged coverage, skip it
-                continue;
-            }
-
-            let mut mons = existing_solution.mons.clone();
-            mons.push(mon);
-            let solution = Solution { mons, coverage };
-
-            if !cache.insert(solution.cache_key()) {
-                // This isn't a new path.
-                continue;
-            }
-
-            if coverage == max_coverage {
-                // We have a solution, return this and nothing more
-                return vec![solution];
-            }
-
-            // More work to do.
-            o.push(solution);
+        // We should only plan to make further recursive calls if more iterations could improve on
+        // the best existing solution.
+        // TODO: may want to continue finding alternatives, and option for showing *all* branching
+        //  paths to solutions
+        if SolutionLength::Solved(call_depth + 1) < solution_state.best_length
+            && solution_state
+                .cache
+                .insert(cache_key(new_coverage, call_depth))
+        {
+            solve(
+                new_coverage,
+                Some(new_mon_list),
+                call_depth + 1,
+                &phone_sets[iterating_index + 1..],
+                solution_state,
+            );
         }
     }
+}
 
-    o
+/// Linked list back up the callstack of the pokemon visited so far
+struct MonList<'a> {
+    prev: Option<&'a MonList<'a>>,
+    pkmn: &'a Pokémon,
+}
+
+impl Display for MonList<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut current = self;
+        let mut names = vec![current.pkmn.name()];
+        while let Some(next) = current.prev {
+            current = next;
+            names.push(current.pkmn.name());
+        }
+        names.sort();
+        names
+            .into_iter()
+            .intersperse(", ")
+            .try_for_each(|s| write!(f, "{s}"))
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum SolutionLength {
+    Solved(usize),
+    #[default]
+    /// Unsolved is ordered after every solution with a length
+    Unsolved,
+}
+
+#[derive(Debug, Default)]
+struct SolutionState {
+    solve_target: BitSet,
+    cache: HashSet<u64>,
+    best_length: SolutionLength,
+    solve_calls: usize,
 }
 
 fn main() -> Result<()> {
@@ -168,7 +175,7 @@ fn main() -> Result<()> {
     // appear earlier in the list (and we get a stable sort).
     let original_mons: Vec<Pokémon> = PronunciationReader::new(f)
         .sorted_by_key(|e| {
-            let mask = e.as_ref().ok()?.phonemes_mask;
+            let mask = e.as_ref().ok()?.phoneme_set;
             Some(Reverse((mask.len(), mask)))
         })
         .collect::<Result<_>>()?;
@@ -177,30 +184,31 @@ fn main() -> Result<()> {
     // max_coverage is the set of every covered phoneme
     let max_coverage = original_mons
         .iter()
-        .map(|mon| mon.phonemes_mask)
+        .map(|mon| mon.phoneme_set)
         .reduce(BitOr::bitor)
         .ok_or_eyre("no pokemon loaded")?;
 
-    let mut mons = if opts.no_prune {
-        original_mons.clone()
-    } else {
+    let mut mons = if opts.prune {
+        // TODO: should this happen later, after sorting?
         let mut res: Vec<Pokémon> = vec![];
         for mon in &original_mons {
             if res
                 .iter()
-                .any(|preceding_mon| mon.phonemes_mask.is_subset_of(preceding_mon.phonemes_mask))
+                .any(|preceding_mon| mon.phoneme_set.is_subset_of(preceding_mon.phoneme_set))
             {
                 continue; // exclude all pokemon that are covered by another's pronunciation
             }
             res.push(mon.clone());
         }
         res
+    } else {
+        original_mons.clone()
     };
     opts.prefer.sort_mons(&mut mons, &mut rng);
     let mons = mons;
 
     if !opts.summary {
-        if !opts.no_prune {
+        if opts.prune {
             println!(
                 "There are {count} Pokémon that do not use a subset of another's phonemes:",
                 count = mons.len()
@@ -211,9 +219,9 @@ fn main() -> Result<()> {
         for (i, mon) in mons.iter().enumerate() {
             println!(
                 "  [{i:03}] = {name:20} phonemes: {phonemes}",
-                name = mon.name,
+                name = mon.name(),
                 phonemes = mon
-                    .phonemes_mask
+                    .phoneme_set
                     .iter()
                     .map(|n| MON_PHONEMES[n])
                     .collect::<String>(),
@@ -227,12 +235,22 @@ fn main() -> Result<()> {
         .map(|&phoneme| {
             (
                 phoneme,
-                mons
-                    .iter()
-                    .filter(|mon| mon.ipa.contains(phoneme))
+                mons.iter()
+                    .filter(|mon| mon.ipa().contains(phoneme))
                     .collect(),
             )
         })
+        .collect();
+
+    let phone_sets: Vec<(usize, &[&Pokémon])> = mons_by_phone
+        .iter()
+        .map(|(phone, mons)| {
+            (
+                phoneme_index(*phone).expect("failed phoneme lookup"),
+                mons.as_slice(),
+            )
+        })
+        .sorted_by_key(|(_, mons)| mons.len())
         .collect();
 
     if !opts.summary {
@@ -253,83 +271,36 @@ fn main() -> Result<()> {
     println!("Finding a solution...");
 
     // Start finding solutions
-    let mut queue: BinaryHeap<Solution> = BinaryHeap::from_iter([Solution::default()]);
-    let mut cache = HashSet::new();
-    // let mut best_bits = 0;
-    let mut best_length = mons_by_phone.len();
-    let mut solution_count = 0;
-    let mut peak_queue_len = queue.len();
-    let mut peak_candidate_len = 0;
-    let mut best_solution = String::new();
-
-    while let Some(step) = queue.pop() {
-        if step.mons.len() + 1 >= best_length {
-            // There's no way we could make an improvement using this solution.
-            continue;
-        }
-
-        // Include only the subset of mons_by_phone that we haven't already covered
-        let lookup: BTreeMap<char, &Vec<&Pokémon>> = mons_by_phone
-            .iter()
-            .filter_map(|(&k, v)| {
-                if !step.coverage.contains(phoneme_index(k).unwrap()) {
-                    Some((k, v))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let mut list_of_solutions = solve(&lookup, &step, max_coverage, &mut cache);
-        // println!("solver gave {} solutions", list_of_solutions.len());
-        peak_candidate_len = peak_candidate_len.max(list_of_solutions.len());
-        list_of_solutions.sort_by_key(|s| Reverse(s.coverage.len()));
-
-        for solution in list_of_solutions {
-            solution_count += 1;
-
-            if solution.coverage == max_coverage {
-                best_length = solution.mons.len();
-                let mut first = true;
-                best_solution.clear();
-                for mon in solution.mons {
-                    if first {
-                        first = false;
-                    } else {
-                        best_solution.push_str(", ");
-                    }
-                    best_solution.push_str(&mon.name);
-                }
-
-                println!(" Solution #{solution_count} ({best_length} Pokémon): {best_solution}");
-
-                // Don't consider more solutions at this length (issue with gen3)
-                break;
-            }
-
-            if solution.mons.len() <= best_length {
-                queue.push(solution);
-            }
-        }
-
-        // println!("{} queued solutions, {best_length} is best", queue.len());
-        peak_queue_len = peak_queue_len.max(queue.len());
-    }
+    let mut solution_state = SolutionState {
+        solve_target: max_coverage,
+        ..Default::default()
+    };
+    solve(
+        BitSet::default(),
+        None,
+        1,
+        phone_sets.as_slice(),
+        &mut solution_state,
+    );
 
     println!();
     println!(
-        "Done, tried {solution_count} candidates, {peak_queue_len} peak queue length, \
-        {peak_candidate_len} peak solver length, {cache_len} cache entries",
-        cache_len = cache.len()
+        "Done, {calls} calls to solve, {cache_len} cache entries",
+        calls = solution_state.solve_calls,
+        cache_len = solution_state.cache.len(),
     );
 
     if opts.summary {
         println!(
-            "| **Generation** | {pokemon_count} | {distinct_pokemon_count} | {phoneme_count} | \
-            **{best_length} Pokémon**: {best_solution} |",
+            "{pokemon_count} total Pokémon; {distinct_pokemon_count} with non-redundant phonemes; \
+            {phoneme_count} total phonemes; {solution}",
             pokemon_count = original_mons.len(),
             distinct_pokemon_count = mons.len(),
             phoneme_count = mons_by_phone.len(),
+            solution = match solution_state.best_length {
+                SolutionLength::Solved(best) => format!("solved in {best}"),
+                SolutionLength::Unsolved => "unsolved??".to_owned(),
+            }
         );
     }
 
